@@ -86,7 +86,7 @@ if [[ -z "$ready" ]]; then
     exit 1
 fi
 
-rm -rf "$SCRIPT_DIR/test-results"
+rm -rf "$SCRIPT_DIR/test-results" "$SCRIPT_DIR/results.json"
 
 echo "Running the Playwright walkthrough (this both tests and records)..."
 docker run --rm \
@@ -99,9 +99,48 @@ docker run --rm \
     "$PLAYWRIGHT_IMAGE" \
     bash -c "npm install --no-audit --no-fund --no-package-lock && npx playwright test"
 
-VIDEOS=($(find "$SCRIPT_DIR/test-results" -name '*.webm' | sort))
+# Playwright truncates long test titles and splices a random hash into
+# the test-results/ folder name once the describe+test title exceeds its
+# length limit — that hash sorts unrelated to run order, so folder-name
+# sorting silently paired the wrong clip with the wrong title card in an
+# earlier version of this script. results.json (see the reporter config
+# in playwright.config.js) lists each test's video attachment in actual
+# declaration/run order regardless of folder naming, so pull it from
+# there instead.
+# results.json's attachment paths are absolute as seen *inside* the
+# Playwright container (e.g. /work/test-results/.../video.webm, since
+# demo/ is bind-mounted to /work there) — strip that container prefix and
+# resolve against $SCRIPT_DIR, the same directory on the host.
+mapfile -t VIDEO_RELS < <(python3 - "$SCRIPT_DIR/results.json" <<'PYEOF'
+import json, sys
+
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+
+videos = []
+
+def walk(node):
+    if isinstance(node, dict):
+        if node.get('name') == 'video' and 'path' in node:
+            videos.append(node['path'])
+        for v in node.values():
+            walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            walk(v)
+
+walk(data)
+prefix = '/work/'
+for v in videos:
+    print(v[len(prefix):] if v.startswith(prefix) else v)
+PYEOF
+)
+VIDEOS=()
+for rel in "${VIDEO_RELS[@]}"; do
+    VIDEOS+=("$SCRIPT_DIR/$rel")
+done
 if [[ "${#VIDEOS[@]}" -ne "${#CAPTIONS[@]}" ]]; then
-    echo "Expected ${#CAPTIONS[@]} recorded videos under test-results/ (one per numbered test), found ${#VIDEOS[@]}" >&2
+    echo "Expected ${#CAPTIONS[@]} recorded videos in results.json (one per numbered test), found ${#VIDEOS[@]}" >&2
     exit 1
 fi
 
