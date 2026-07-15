@@ -1,0 +1,12 @@
+{
+  "name": "doxie-scanner-demo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Scripted UI walkthrough of doxie-scanner, used both as an integration test and to record demo.gif for the README.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.0"
+  }
+}

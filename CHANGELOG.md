@@ -7,6 +7,17 @@ like `v1.2.0`, and each one gets its own section below.
 
 ## [Unreleased]
 
+### Added
+
+- The combine-into-PDF bar now shows a thumbnail of every selected page,
+  draggable to set the final PDF's page order, with a per-thumbnail
+  remove button — no more guessing what order pages will end up in or
+  hunting down a page's original tile just to deselect it. Thumbnails are
+  labeled by their position in the combined document (1, 2, 3...), not
+  their original page number, since two pages from different scans can
+  otherwise both claim to be "page 1". Click a thumbnail for a plain,
+  action-free preview of that page.
+
 ### Changed
 
 - Duplex scanning is now on by default. The previously documented

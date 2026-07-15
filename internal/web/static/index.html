@@ -66,11 +66,14 @@
   </main>
 
   <div id="combine-bar" class="d-none">
-    <div class="container d-flex align-items-center gap-3 flex-wrap py-2">
-      <span><strong id="combine-count">0</strong> page(s) selected</span>
-      <input id="combine-title" type="text" class="form-control form-control-sm" style="width:auto" placeholder="Document title">
-      <button id="combine-btn" class="btn btn-success btn-sm">Combine into PDF</button>
-      <button id="combine-clear-btn" class="btn btn-outline-secondary btn-sm">Clear selection</button>
+    <div class="container py-2">
+      <div id="combine-thumbs" class="d-flex align-items-start gap-2 mb-2"></div>
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span><strong id="combine-count">0</strong> page(s) selected — drag thumbnails to reorder</span>
+        <input id="combine-title" type="text" class="form-control form-control-sm" style="width:auto" placeholder="Document title">
+        <button id="combine-btn" class="btn btn-success btn-sm">Combine into PDF</button>
+        <button id="combine-clear-btn" class="btn btn-outline-secondary btn-sm">Clear selection</button>
+      </div>
     </div>
   </div>
 
