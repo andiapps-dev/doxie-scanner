@@ -31,6 +31,21 @@ GIF_FPS=8
 GIF_WIDTH=900
 GIF_MAX_COLORS=160
 
+# Must match the viewport/video size in playwright.config.js, and stay in
+# the same order as the numbered tests in demo.spec.js — each caption
+# becomes the title card shown right before that test's recorded clip.
+CLIP_WIDTH=1280
+CLIP_HEIGHT=860
+CLIP_FPS=10
+TITLE_DUR=1.6
+FONT="$(fc-match -f '%{file}\n' 'DejaVu Sans:bold' 2>/dev/null || echo /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf)"
+CAPTIONS=(
+    "Live scanner connection status"
+    "Browse, rotate, and crop a page"
+    "Combine pages from multiple scans into one PDF"
+    "Rename a scan and delete a page"
+)
+
 cleanup() {
     echo "Cleaning up..."
     docker rm -f "$APP_CONTAINER" >/dev/null 2>&1 || true
@@ -84,18 +99,46 @@ docker run --rm \
     "$PLAYWRIGHT_IMAGE" \
     bash -c "npm install --no-audit --no-fund --no-package-lock && npx playwright test"
 
-VIDEO="$(find "$SCRIPT_DIR/test-results" -name '*.webm' | head -1)"
-if [[ -z "$VIDEO" ]]; then
-    echo "No recorded video found under test-results/ — did the test run?" >&2
+VIDEOS=($(find "$SCRIPT_DIR/test-results" -name '*.webm' | sort))
+if [[ "${#VIDEOS[@]}" -ne "${#CAPTIONS[@]}" ]]; then
+    echo "Expected ${#CAPTIONS[@]} recorded videos under test-results/ (one per numbered test), found ${#VIDEOS[@]}" >&2
     exit 1
 fi
 
-echo "Converting $VIDEO to GIF..."
+echo "Building title cards and normalizing clips for concatenation..."
+CLIPS=()
+for i in "${!CAPTIONS[@]}"; do
+    caption="${CAPTIONS[$i]}"
+    title_clip="$WORK_DIR/title_$i.mp4"
+    ffmpeg -y -f lavfi -i "color=c=0x2c3e50:s=${CLIP_WIDTH}x${CLIP_HEIGHT}:d=${TITLE_DUR}:r=${CLIP_FPS}" \
+        -vf "drawtext=fontfile=${FONT}:text='${caption}':fontcolor=white:fontsize=44:x=(w-text_w)/2:y=(h-text_h)/2" \
+        -c:v libx264 -preset ultrafast -pix_fmt yuv420p "$title_clip" >"$WORK_DIR/title_$i.log" 2>&1
+    CLIPS+=("$title_clip")
+
+    # Playwright's .webm recordings are VP8/VP9 at a variable frame rate;
+    # re-encode each to the same codec/resolution/fixed-fps as the title
+    # cards so the concat demuxer below can just stream-copy them together.
+    video_clip="$WORK_DIR/clip_$i.mp4"
+    ffmpeg -y -i "${VIDEOS[$i]}" \
+        -vf "scale=${CLIP_WIDTH}:${CLIP_HEIGHT}" -r "$CLIP_FPS" \
+        -c:v libx264 -preset ultrafast -pix_fmt yuv420p "$video_clip" >"$WORK_DIR/clip_$i.log" 2>&1
+    CLIPS+=("$video_clip")
+done
+
+CONCAT_LIST="$WORK_DIR/concat.txt"
+: >"$CONCAT_LIST"
+for c in "${CLIPS[@]}"; do
+    printf "file '%s'\n" "$c" >>"$CONCAT_LIST"
+done
+CONCAT_MP4="$WORK_DIR/concat.mp4"
+ffmpeg -y -f concat -safe 0 -i "$CONCAT_LIST" -c copy "$CONCAT_MP4" >"$WORK_DIR/concat.log" 2>&1
+
+echo "Converting to GIF..."
 PALETTE="$WORK_DIR/palette.png"
-ffmpeg -y -i "$VIDEO" \
+ffmpeg -y -i "$CONCAT_MP4" \
     -vf "fps=${GIF_FPS},scale=${GIF_WIDTH}:-1:flags=lanczos,palettegen=max_colors=${GIF_MAX_COLORS}:stats_mode=diff" \
     "$PALETTE" >"$WORK_DIR/palette.log" 2>&1
-ffmpeg -y -i "$VIDEO" -i "$PALETTE" \
+ffmpeg -y -i "$CONCAT_MP4" -i "$PALETTE" \
     -lavfi "fps=${GIF_FPS},scale=${GIF_WIDTH}:-1:flags=lanczos [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=3" \
     "$OUTPUT_DIR/doxie-scanner-demo.gif" >"$WORK_DIR/gif.log" 2>&1
 
