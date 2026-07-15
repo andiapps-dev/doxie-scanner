@@ -1,8 +1,13 @@
 name: Publish Docker image
 
+# Tag push only — not every push to main. A plain merge to main just
+# runs CI (see ci.yml); nothing gets published until an actual vX.Y.Z
+# release tag lands, so :latest always means "latest release," not
+# "whatever's currently on main," and each release only builds once
+# (previously this also triggered on the branches:[main] push that a
+# release's own commit produces, doubling the build for no reason).
 on:
   push:
-    branches: [main]
     tags: ["v*"]
 
 env:
@@ -10,7 +15,13 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # Re-runs the same test/coverage gate as ci.yml (via workflow_call) so
+  # a release can't publish an image that wouldn't have passed CI.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   build-and-push:
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,7 +42,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
@@ -46,11 +57,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+            VERSION=${{ github.ref_name }}
 
   release:
-    # Only for an actual version tag, not every push to main.
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: build-and-push
     runs-on: ubuntu-latest
     permissions:

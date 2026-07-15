@@ -257,15 +257,21 @@ release is:
 1. Update `CHANGELOG.md`: move the `[Unreleased]` entries under a new
    `## [x.y.z] - YYYY-MM-DD` heading.
 2. Commit that change.
-3. Run `./github-push.sh vX.Y.Z` (from the monorepo side) — this
-   publishes the current code to this repo's `main` *and* pushes the
-   `vX.Y.Z` tag in one step.
+3. Run `./github-push.sh` (from the monorepo side, no argument) — this
+   publishes the current code to this repo's `main`, auto-detects the
+   highest `vX.Y.Z` tag already here, bumps its PATCH number, and pushes
+   that as the new tag, all in one step. Pass an explicit version instead
+   (`./github-push.sh v1.3.0`) for a MINOR/MAJOR bump, or `--no-tag` to
+   publish without releasing.
 
 The tag push does the rest automatically: `.github/workflows/docker-publish.yml`
+re-runs the full CI test/coverage gate, then — only if that passes —
 builds the image with `main.version` set to the tag (surfaced at
 `GET /api/version`), pushes `ghcr.io/andiapps-dev/doxie-scanner` tagged
 `X.Y.Z`, `X.Y`, and `latest`, and creates a GitHub Release for the tag
-with auto-generated notes.
+with auto-generated notes. A plain push to `main` with no tag only runs
+CI — it never publishes an image, so `:latest` always means "latest
+release," not "whatever's currently on main."
 
 ## A known hardware quirk
 

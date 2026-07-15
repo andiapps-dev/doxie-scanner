@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Lets docker-publish.yml call this as a reusable workflow, so a
+  # release re-runs the exact same test/coverage gate rather than
+  # duplicating those steps in a second workflow file.
+  workflow_call: {}
 
 jobs:
   test:
