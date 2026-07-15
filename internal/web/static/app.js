@@ -175,45 +175,45 @@
       return;
     }
     for (const page of pages) {
-      grid.appendChild(renderPageTile(job.id, page));
+      grid.appendChild(renderPageThumbnail(job.id, page));
     }
   }
 
-  // renderPageTile renders one tile per page. Duplex scanning produces two
-  // independent pages per physical sheet (see storage.PageMeta) — there's
-  // nothing special about a "back" page here, it's just the next page in
-  // the list, same as any other.
-  function renderPageTile(jobId, page) {
-    const tile = document.createElement('div');
-    tile.className = 'page-tile';
-    tile.draggable = true;
-    tile.dataset.page = page.index;
+  // renderPageThumbnail renders one thumbnail per page. Duplex scanning
+  // produces two independent pages per physical sheet (see
+  // storage.PageMeta) — there's nothing special about a "back" page here,
+  // it's just the next page in the list, same as any other.
+  function renderPageThumbnail(jobId, page) {
+    const thumbnail = document.createElement('div');
+    thumbnail.className = 'page-thumbnail';
+    thumbnail.draggable = true;
+    thumbnail.dataset.page = page.index;
 
     const key = combineKey(jobId, page.index);
     const selected = state.combineSelection.has(key);
     const src = pageImageUrl(jobId, page.index);
     const label = `Page ${page.index}`;
 
-    tile.innerHTML = `
+    thumbnail.innerHTML = `
       <img class="page-thumb" src="${src}" alt="${label}">
-      <div class="page-tile-overlay">
+      <div class="page-thumbnail-overlay">
         <input type="checkbox" class="form-check-input combine-check" ${selected ? 'checked' : ''} title="Select for combine">
       </div>
-      <div class="page-tile-footer">${label}</div>
+      <div class="page-thumbnail-footer">${label}</div>
     `;
 
-    tile.querySelector('.page-thumb').addEventListener('click', () => openPageViewer(jobId, page.index));
-    tile.querySelector('.combine-check').addEventListener('change', () => {
+    thumbnail.querySelector('.page-thumb').addEventListener('click', () => openPageViewer(jobId, page.index));
+    thumbnail.querySelector('.combine-check').addEventListener('change', () => {
       toggleCombine(jobId, page.index);
     });
 
-    tile.addEventListener('dragstart', (e) => {
+    thumbnail.addEventListener('dragstart', (e) => {
       state.dragSrcIndex = page.index;
-      tile.classList.add('dragging');
+      thumbnail.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
-    tile.addEventListener('dragend', () => {
-      tile.classList.remove('dragging');
+    thumbnail.addEventListener('dragend', () => {
+      thumbnail.classList.remove('dragging');
       state.dragSrcIndex = null;
       // Re-render from the authoritative state: if a drop already
       // committed a reorder, selectJob() has (or will have) updated
@@ -221,33 +221,34 @@
       // cancelled with no drop, this simply restores the original order.
       renderJobDetail();
     });
-    tile.addEventListener('dragover', (e) => {
+    thumbnail.addEventListener('dragover', (e) => {
       e.preventDefault();
       if (state.dragSrcIndex == null || state.dragSrcIndex === page.index) return;
-      // Move the actual dragged tile in the DOM, live, to exactly where it
-      // would land — what you see while dragging is what you get, no
-      // separate indicator to interpret.
-      const dragged = el('page-grid').querySelector('.page-tile.dragging');
+      // Move the actual dragged thumbnail in the DOM, live, to exactly
+      // where it would land — what you see while dragging is what you
+      // get, no separate indicator to interpret.
+      const dragged = el('page-grid').querySelector('.page-thumbnail.dragging');
       if (!dragged) return;
-      const rect = tile.getBoundingClientRect();
+      const rect = thumbnail.getBoundingClientRect();
       const before = e.clientX - rect.left < rect.width / 2;
-      tile.parentNode.insertBefore(dragged, before ? tile : tile.nextSibling);
+      thumbnail.parentNode.insertBefore(dragged, before ? thumbnail : thumbnail.nextSibling);
     });
-    tile.addEventListener('drop', (e) => {
+    thumbnail.addEventListener('drop', (e) => {
       e.preventDefault();
       if (state.dragSrcIndex == null) return;
       commitReorder();
     });
 
-    return tile;
+    return thumbnail;
   }
 
-  // commitReorder reads whatever order the page tiles are currently in
-  // (already rearranged live during dragover) and persists it — the grid
-  // itself is the source of truth for the drop, not a recomputed position.
+  // commitReorder reads whatever order the page thumbnails are currently
+  // in (already rearranged live during dragover) and persists it — the
+  // grid itself is the source of truth for the drop, not a recomputed
+  // position.
   function commitReorder() {
     const jobId = state.selectedJobId;
-    const order = Array.from(el('page-grid').querySelectorAll('.page-tile')).map((t) => Number(t.dataset.page));
+    const order = Array.from(el('page-grid').querySelectorAll('.page-thumbnail')).map((t) => Number(t.dataset.page));
     withBusy(async () => {
       await api(`/api/scans/${jobId}/pages/order`, {
         method: 'PATCH',
@@ -275,9 +276,9 @@
   }
 
   // removeFromCombine deselects one page directly from the combine bar's
-  // thumbnail strip (rather than from wherever its page tile happens to
-  // be, which might be a different scan entirely than the one currently
-  // open).
+  // thumbnail strip (rather than from wherever its page thumbnail happens
+  // to be, which might be a different scan entirely than the one
+  // currently open).
   function removeFromCombine(key) {
     const entry = state.combineSelection.get(key);
     if (!entry) return;
@@ -308,46 +309,46 @@
   // "page 1" in their own right, so labeling by source page number was
   // ambiguous here.
   function renderCombineThumb(key, entry, position) {
-    const tile = document.createElement('div');
-    tile.className = 'combine-thumb';
-    tile.draggable = true;
-    tile.dataset.key = key;
+    const thumbnail = document.createElement('div');
+    thumbnail.className = 'combine-thumb';
+    thumbnail.draggable = true;
+    thumbnail.dataset.key = key;
 
     const src = pageImageUrl(entry.jobId, entry.page);
-    tile.innerHTML = `
+    thumbnail.innerHTML = `
       <img src="${src}" alt="Page ${position} of combined document">
       <button type="button" class="combine-thumb-remove" title="Remove from selection">&times;</button>
       <div class="combine-thumb-label">${position}</div>
     `;
 
-    tile.querySelector('img').addEventListener('click', () => {
+    thumbnail.querySelector('img').addEventListener('click', () => {
       openPageViewer(entry.jobId, entry.page, { viewOnly: true });
     });
 
-    tile.querySelector('.combine-thumb-remove').addEventListener('click', () => {
+    thumbnail.querySelector('.combine-thumb-remove').addEventListener('click', () => {
       removeFromCombine(key);
     });
 
-    tile.addEventListener('dragstart', (e) => {
+    thumbnail.addEventListener('dragstart', (e) => {
       state.combineDragKey = key;
-      tile.classList.add('dragging');
+      thumbnail.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
-    tile.addEventListener('dragend', () => {
-      tile.classList.remove('dragging');
+    thumbnail.addEventListener('dragend', () => {
+      thumbnail.classList.remove('dragging');
       state.combineDragKey = null;
       renderCombineBar();
     });
-    tile.addEventListener('dragover', (e) => {
+    thumbnail.addEventListener('dragover', (e) => {
       e.preventDefault();
       if (state.combineDragKey == null || state.combineDragKey === key) return;
       const dragged = el('combine-thumbs').querySelector('.combine-thumb.dragging');
       if (!dragged) return;
-      const rect = tile.getBoundingClientRect();
+      const rect = thumbnail.getBoundingClientRect();
       const before = e.clientX - rect.left < rect.width / 2;
-      tile.parentNode.insertBefore(dragged, before ? tile : tile.nextSibling);
+      thumbnail.parentNode.insertBefore(dragged, before ? thumbnail : thumbnail.nextSibling);
     });
-    tile.addEventListener('drop', (e) => {
+    thumbnail.addEventListener('drop', (e) => {
       e.preventDefault();
       if (state.combineDragKey == null) return;
       // Commit the order directly from the live DOM arrangement — what
@@ -355,7 +356,7 @@
       state.combineOrder = Array.from(el('combine-thumbs').querySelectorAll('.combine-thumb')).map((t) => t.dataset.key);
     });
 
-    return tile;
+    return thumbnail;
   }
 
   // ---- Page viewer / editor modal ----
@@ -599,15 +600,15 @@
     state.viewer = null;
   });
 
-  // Fallback for dropping into empty grid space past the last tile (e.g.
-  // an incomplete last row) — wired once here rather than in
-  // renderPageTile, since #page-grid itself is never recreated, only its
-  // children (renderJobDetail rebuilds those on every render).
+  // Fallback for dropping into empty grid space past the last thumbnail
+  // (e.g. an incomplete last row) — wired once here rather than in
+  // renderPageThumbnail, since #page-grid itself is never recreated, only
+  // its children (renderJobDetail rebuilds those on every render).
   const pageGrid = el('page-grid');
   pageGrid.addEventListener('dragover', (e) => {
     if (e.target !== pageGrid || state.dragSrcIndex == null) return;
     e.preventDefault();
-    const dragged = pageGrid.querySelector('.page-tile.dragging');
+    const dragged = pageGrid.querySelector('.page-thumbnail.dragging');
     if (dragged) pageGrid.appendChild(dragged);
   });
   pageGrid.addEventListener('drop', (e) => {

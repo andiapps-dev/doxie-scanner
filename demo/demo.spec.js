@@ -66,7 +66,7 @@ async function pointAt(page, locator) {
 }
 
 // Presses down on locator (a Cropper.js resize handle) and drags it to an
-// absolute page position. Unlike app.js's own page-tile drag-and-drop,
+// absolute page position. Unlike app.js's own page-thumbnail drag-and-drop,
 // Cropper.js resizes its crop box via plain mousedown/mousemove/mouseup —
 // no native HTML5 draggable involved — so a real press-move-release
 // genuinely resizes it, the same as an actual user dragging the handle.
@@ -187,11 +187,17 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     // mocked responses.
     const FAKE_JOB_ID = 'demo-live-scan';
     const FAKE_JOB_NAME = 'Scan (demo)';
+    const FAKE_PAGE_COUNT = 2;
 
-    // Reuse a real seed page's actual image bytes for the fake scan's
-    // page, so the result looks like a real document rather than a
-    // blank/broken image.
-    const pageBytes = await (await page.request.get('/api/scans/demo-invoice/pages/1')).body();
+    // Reuse the real seed invoice's two actual pages' image bytes for the
+    // fake scan's result, so it looks like a real 2-page document rather
+    // than a blank/broken image — and so the progress count (which counts
+    // up to FAKE_PAGE_COUNT below) matches what the completed job
+    // actually contains.
+    const pageBytes = [];
+    for (let i = 1; i <= FAKE_PAGE_COUNT; i++) {
+      pageBytes.push(await (await page.request.get(`/api/scans/demo-invoice/pages/${i}`)).body());
+    }
     const realJobs = await (await page.request.get('/api/scans')).json();
 
     await page.route('**/api/scanner/status', (route) =>
@@ -207,7 +213,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
           name: FAKE_JOB_NAME,
           createdAt: new Date().toISOString(),
           status: 'completed',
-          pageCount: 1,
+          pageCount: FAKE_PAGE_COUNT,
           duplex: false,
         };
         await route.fulfill({ json: [fakeSummary, ...realJobs] });
@@ -215,12 +221,14 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     });
 
     // The frontend polls GET /api/scans/{id} once a second while a scan
-    // is running; report "running" a couple of times so the page count
-    // in the UI actually ticks up, then "completed" with one page.
+    // is running; report "running" with an increasing pagesScanned count
+    // so the UI ticks up 1, 2, ..., then "completed" with exactly
+    // FAKE_PAGE_COUNT pages — matching what was just "scanned", not a
+    // different, smaller number.
     let pollCount = 0;
     await page.route(`**/api/scans/${FAKE_JOB_ID}`, async (route) => {
       pollCount++;
-      if (pollCount < 3) {
+      if (pollCount <= FAKE_PAGE_COUNT) {
         await route.fulfill({
           json: {
             id: FAKE_JOB_ID,
@@ -246,16 +254,23 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
             status: 'completed',
             duplex: false,
             dpi: 300,
-            pageCount: 1,
-            pages: [{ index: 1, file: 'page-001.png', widthPx: 850, heightPx: 1100 }],
+            pageCount: FAKE_PAGE_COUNT,
+            pages: Array.from({ length: FAKE_PAGE_COUNT }, (_, i) => ({
+              index: i + 1,
+              file: `page-${String(i + 1).padStart(3, '0')}.png`,
+              widthPx: 850,
+              heightPx: 1100,
+            })),
           },
         });
       }
     });
 
-    await page.route(`**/api/scans/${FAKE_JOB_ID}/pages/1*`, (route) =>
-      route.fulfill({ contentType: 'image/png', body: pageBytes }),
-    );
+    for (let i = 1; i <= FAKE_PAGE_COUNT; i++) {
+      await page.route(`**/api/scans/${FAKE_JOB_ID}/pages/${i}*`, (route) =>
+        route.fulfill({ contentType: 'image/png', body: pageBytes[i - 1] }),
+      );
+    }
 
     await page.goto('/');
     await installCursor(page);
@@ -273,7 +288,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(page.locator('#scan-progress')).toBeHidden({ timeout: 10_000 });
     const jobList = page.locator('#job-list');
     await expect(jobList.getByText(FAKE_JOB_NAME)).toBeVisible();
-    await expect(page.locator('#page-grid').locator('.page-tile')).toHaveCount(1);
+    await expect(page.locator('#page-grid').locator('.page-thumbnail')).toHaveCount(FAKE_PAGE_COUNT);
     await beat(page, 1200);
   });
 
@@ -284,21 +299,21 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     const grid = page.locator('#page-grid');
 
     await clickAt(page, jobList.getByText('Q3 Invoice — Rivertown Supply'));
-    await expect(grid.locator('.page-tile')).toHaveCount(2);
+    await expect(grid.locator('.page-thumbnail')).toHaveCount(2);
     await beat(page);
 
     // Reorder: drag page 2 in front of page 1, then persist via the
     // PATCH /pages/order call the UI fires on drop.
     const [reorderResp] = await Promise.all([
       page.waitForResponse((r) => r.url().includes('/pages/order') && r.request().method() === 'PATCH'),
-      dragReorder(page, grid.locator('.page-tile[data-page="2"]'), grid.locator('.page-tile[data-page="1"]')),
+      dragReorder(page, grid.locator('.page-thumbnail[data-page="2"]'), grid.locator('.page-thumbnail[data-page="1"]')),
     ]);
     expect(reorderResp.ok()).toBeTruthy();
-    await expect(grid.locator('.page-tile').first()).toHaveAttribute('data-page', '2');
+    await expect(grid.locator('.page-thumbnail').first()).toHaveAttribute('data-page', '2');
     await beat(page, 1000);
 
     // Open the (now first) tile, rotate it, then crop it.
-    await clickAt(page, grid.locator('.page-tile').first().locator('.page-thumb'));
+    await clickAt(page, grid.locator('.page-thumbnail').first().locator('.page-thumb'));
     const modal = page.locator('#page-modal');
     await expect(modal).toBeVisible();
     await expect(page.locator('#page-modal-image')).toBeVisible();
@@ -348,13 +363,13 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     // scan, which is exactly why the combine bar labels by position
     // instead of original page number.
     await clickAt(page, jobList.getByText('Q3 Invoice — Rivertown Supply'));
-    await expect(grid.locator('.page-tile')).toHaveCount(2);
-    await clickAt(page, grid.locator('.page-tile[data-page="2"] .combine-check'));
+    await expect(grid.locator('.page-thumbnail')).toHaveCount(2);
+    await clickAt(page, grid.locator('.page-thumbnail[data-page="2"] .combine-check'));
     await beat(page);
 
     await clickAt(page, jobList.getByText('Cover Letter Draft'));
-    await expect(grid.locator('.page-tile')).toHaveCount(1);
-    await clickAt(page, grid.locator('.page-tile .combine-check'));
+    await expect(grid.locator('.page-thumbnail')).toHaveCount(1);
+    await clickAt(page, grid.locator('.page-thumbnail .combine-check'));
 
     await expect(combineBar).toBeVisible();
     await expect(page.locator('#combine-count')).toHaveText('2');
@@ -385,7 +400,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await beat(page, 1000);
 
     await clickAt(page, jobList.getByText('Q3 Invoice — Rivertown Supply'));
-    await clickAt(page, grid.locator('.page-tile[data-page="2"] .combine-check'));
+    await clickAt(page, grid.locator('.page-thumbnail[data-page="2"] .combine-check'));
     await expect(thumbs).toHaveCount(2);
     await beat(page);
 
@@ -411,7 +426,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     const modal = page.locator('#page-modal');
 
     await clickAt(page, jobList.getByText('Q3 Invoice — Rivertown Supply'));
-    await expect(grid.locator('.page-tile')).toHaveCount(2);
+    await expect(grid.locator('.page-thumbnail')).toHaveCount(2);
     await beat(page);
 
     await clickAt(page, page.locator('#job-name-input'));
@@ -422,13 +437,13 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await beat(page, 1200);
 
     // Delete one page from it and confirm the page count drops.
-    await clickAt(page, grid.locator('.page-tile').first().locator('.page-thumb'));
+    await clickAt(page, grid.locator('.page-thumbnail').first().locator('.page-thumb'));
     await expect(modal).toBeVisible();
     await beat(page, 800);
     page.once('dialog', (d) => d.accept());
     await clickAt(page, page.locator('#pm-delete'));
     await expect(modal).toBeHidden();
-    await expect(grid.locator('.page-tile')).toHaveCount(1);
+    await expect(grid.locator('.page-thumbnail')).toHaveCount(1);
     await beat(page, 1000);
   });
 });
