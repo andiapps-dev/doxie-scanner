@@ -20,7 +20,7 @@ func newTestServer(t *testing.T, drv driver.Driver) (*Server, *storage.Store) {
 	t.Helper()
 	store := storage.New(t.TempDir())
 	mgr := scanjobs.NewManager(drv, store)
-	return NewServer(drv, mgr, store, nil), store
+	return NewServer(drv, mgr, store, nil, "test"), store
 }
 
 func testImage(w, h int, c color.NRGBA) *image.NRGBA {

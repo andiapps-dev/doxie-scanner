@@ -18,6 +18,11 @@ import (
 	"github.com/andiapps-dev/doxie-scanner/internal/web"
 )
 
+// version is overridden at build time via -ldflags "-X main.version=...".
+// The Dockerfile/build.sh set it to the git tag being released; local
+// `go build`s leave it as "dev".
+var version = "dev"
+
 func main() {
 	cfg := loadConfig(os.Getenv)
 
@@ -44,8 +49,8 @@ func main() {
 	}
 
 	mgr := scanjobs.NewManager(drv, store)
-	srv := api.NewServer(drv, mgr, store, web.FS())
+	srv := api.NewServer(drv, mgr, store, web.FS(), version)
 
-	log.Printf("doxie-scanner listening on %s (driver=%s)", cfg.ListenAddr, cfg.DriverName)
+	log.Printf("doxie-scanner %s listening on %s (driver=%s)", version, cfg.ListenAddr, cfg.DriverName)
 	log.Fatal(http.ListenAndServe(cfg.ListenAddr, srv))
 }

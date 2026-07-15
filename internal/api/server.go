@@ -14,19 +14,24 @@ import (
 // state — handlers are just adapters over the packages that do the real
 // work.
 type Server struct {
-	drv   driver.Driver
-	jobs  *scanjobs.Manager
-	store *storage.Store
-	mux   *http.ServeMux
+	drv     driver.Driver
+	jobs    *scanjobs.Manager
+	store   *storage.Store
+	version string
+	mux     *http.ServeMux
 }
 
 // NewServer builds a Server and wires its full route table. staticFS
 // serves the embedded frontend (internal/web) at "/"; it may be nil in
-// tests that only care about the JSON API.
-func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, staticFS fs.FS) *Server {
-	s := &Server{drv: drv, jobs: jobs, store: store}
+// tests that only care about the JSON API. version is whatever build-time
+// identifier main.go was compiled with (a git tag in release builds,
+// "dev" otherwise) — surfaced read-only via GET /api/version so a
+// running container can be identified for support purposes.
+func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, staticFS fs.FS, version string) *Server {
+	s := &Server{drv: drv, jobs: jobs, store: store, version: version}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/version", s.handleVersion)
 	mux.HandleFunc("GET /api/scanner/status", s.handleScannerStatus)
 
 	mux.HandleFunc("POST /api/scans", s.handleStartScan)

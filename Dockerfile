@@ -8,11 +8,15 @@ FROM --platform=linux/amd64 golang:1.24-alpine AS builder
 
 RUN apk add --no-cache build-base pkgconf libusb-dev
 
+# Set by docker-publish.yml to the git tag being released (e.g. v1.2.0);
+# left as "dev" for a local `./build.sh` with no VERSION given.
+ARG VERSION=dev
+
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/doxie-scanner .
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/doxie-scanner .
 
 # NOT scratch: gousb/cgo dynamically links libusb-1.0 at runtime, so the
 # final image needs libc plus the libusb shared library — the one

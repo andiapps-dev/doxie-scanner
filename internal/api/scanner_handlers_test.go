@@ -11,6 +11,24 @@ import (
 	"github.com/andiapps-dev/doxie-scanner/internal/scsiusb"
 )
 
+func TestHandleVersion(t *testing.T) {
+	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400"}}
+	srv, _ := newTestServer(t, drv)
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/version", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var resp versionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Version != "test" {
+		t.Errorf("Version = %q, want %q (from newTestServer)", resp.Version, "test")
+	}
+}
+
 func TestHandleScannerStatus_Connected(t *testing.T) {
 	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400", VID: 0x2740, PID: 0x000c}}
 	srv, _ := newTestServer(t, drv)

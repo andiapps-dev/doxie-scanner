@@ -5,6 +5,17 @@ import (
 	"net/http"
 )
 
+type versionResponse struct {
+	Version string `json:"version"`
+}
+
+// handleVersion reports the build-time version identifier — a git tag in
+// release builds, "dev" for a local/untagged build. Useful for support:
+// confirming exactly what a running container is.
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, versionResponse{Version: s.version})
+}
+
 type scannerStatusResponse struct {
 	Connected bool      `json:"connected"`
 	VID       string    `json:"vid"`

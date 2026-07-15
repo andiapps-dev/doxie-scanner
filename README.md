@@ -151,7 +151,8 @@ lsusb -d 2740:000c
 ## Scripts
 
 - `./build.sh [docker|local]` — build the Docker image (default) or a
-  native binary at `./doxie-scanner`
+  native binary at `./doxie-scanner`. Set `VERSION=v1.2.0` to bake a
+  version into the build (see Releasing below); defaults to `dev`.
 - `./test.sh` — `go vet` + `go build` + `go test` with the same coverage
   gate CI enforces (see Coverage below)
 - `./run.sh` — run the locally-built image with the required data volume
@@ -163,6 +164,7 @@ All endpoints are JSON except where noted. No authentication.
 
 | Method & path | Purpose |
 |---|---|
+| `GET /api/version` | `{"version": "..."}` — the git tag this build was released from, or `"dev"` for a local/untagged build. |
 | `GET /api/scanner/status` | `{connected, vid, pid, driver, error?}` — always 200; "not connected" is a normal poll result, not an HTTP error. |
 | `POST /api/scans` | `{"duplex": bool}` → starts a scan job. `202 {jobId, status}`. `409` if a scan is already running. |
 | `GET /api/scans` | List jobs, newest first. |
@@ -240,6 +242,30 @@ go tool cover -html=coverage.filtered.out -o coverage.html
 
 The frontend (`internal/web/static/app.js`) is plain vanilla JS and is
 not part of this coverage figure.
+
+## Releasing
+
+Versions are git tags on this repo, following [Semantic
+Versioning](https://semver.org/): `vMAJOR.MINOR.PATCH` (e.g. `v1.2.0`).
+Bump PATCH for fixes, MINOR for backward-compatible features, MAJOR for
+a breaking change to the HTTP API or the on-disk `meta.json` schema.
+
+This repo is published from a private monorepo via a subtree-split
+script (`Web/doxie-scanner-scripts/github-push.sh` there), so cutting a
+release is:
+
+1. Update `CHANGELOG.md`: move the `[Unreleased]` entries under a new
+   `## [x.y.z] - YYYY-MM-DD` heading.
+2. Commit that change.
+3. Run `./github-push.sh vX.Y.Z` (from the monorepo side) — this
+   publishes the current code to this repo's `main` *and* pushes the
+   `vX.Y.Z` tag in one step.
+
+The tag push does the rest automatically: `.github/workflows/docker-publish.yml`
+builds the image with `main.version` set to the tag (surfaced at
+`GET /api/version`), pushes `ghcr.io/andiapps-dev/doxie-scanner` tagged
+`X.Y.Z`, `X.Y`, and `latest`, and creates a GitHub Release for the tag
+with auto-generated notes.
 
 ## A known hardware quirk
 
