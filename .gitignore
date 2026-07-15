@@ -1,0 +1,5 @@
+/doxie-scanner
+/data/
+coverage.out
+coverage.filtered.out
+coverage.html

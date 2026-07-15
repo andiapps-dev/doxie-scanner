@@ -1,0 +1,107 @@
+/* Minimal overrides only — Bootswatch Flatly does the heavy lifting. */
+
+/* Page grid: tiles fill available width left-to-right, then wrap to the
+   next row — however many columns actually fit, rather than a fixed
+   Bootstrap breakpoint count. */
+#page-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.page-tile {
+  position: relative;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: var(--bs-body-bg);
+  overflow: hidden;
+  cursor: grab;
+}
+
+/* Dragged tile is moved live in the DOM to its landing spot during
+   dragover (see app.js) — the tile itself, faded, is the only "indicator"
+   needed; there's no separate drop-line to keep in sync with it. */
+.page-tile.dragging {
+  opacity: 0.4;
+}
+
+.page-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: contain;
+  background: var(--bs-secondary-bg);
+  cursor: pointer;
+}
+
+.page-tile-overlay {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  right: 0.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+.page-tile-overlay .form-check-input {
+  pointer-events: auto;
+}
+
+.page-tile-footer {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+  text-align: center;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+/* Job list: rely on Bootstrap's own .active styling (strong, unmistakable
+   selected state) rather than a subtle custom shade. */
+#job-list .list-group-item {
+  cursor: pointer;
+}
+
+#job-list .job-meta {
+  font-size: 0.8rem;
+}
+
+#combine-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 1020;
+}
+
+.page-modal-image-wrap {
+  max-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-modal-image-wrap img {
+  max-width: 100%;
+  max-height: 70vh;
+  display: block;
+}
+
+/* Cropper.js reads the image's current rendered box size when it
+   initializes and builds its own interactive container to match — so as
+   long as the wrapper's max-height constraint is still in effect at that
+   moment (never relaxed for a "cropping" state), Cropper stays within the
+   same footprint the plain viewer used, and the modal never grows or
+   pushes its action buttons out of view. */
+
+#busy-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}

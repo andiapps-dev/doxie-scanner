@@ -1,0 +1,25 @@
+services:
+  doxie-scanner:
+    image: ghcr.io/andiapps-dev/doxie-scanner:latest
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      # REQUIRED: without this bind mount, scanned pages live only in
+      # the container's writable layer and are lost the moment the
+      # container is removed or recreated.
+      - ./data:/data
+    devices:
+      # Makes the device nodes visible in the container. On its own this
+      # is NOT enough to survive a scanner disconnect/reconnect — see
+      # device_cgroup_rules below and README.md's USB passthrough section
+      # for why.
+      - /dev/bus/usb:/dev/bus/usb
+    device_cgroup_rules:
+      # 189 is the USB device major number; the wildcard minor means this
+      # keeps working no matter what bus/device number the kernel assigns
+      # the scanner after a reconnect, unlike a plain `devices:` entry
+      # (whose cgroup ACL is computed once, at container start, for
+      # whatever bus/device number was current then).
+      - "c 189:* rmw"
+    restart: unless-stopped

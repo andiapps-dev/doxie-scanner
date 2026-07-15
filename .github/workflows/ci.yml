@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      MIN_COVERAGE: "95"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      # cgo needs these even to `go build`/`go vet`, unlike a pure-Go project.
+      - name: Install libusb + build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libusb-1.0-0-dev pkg-config build-essential
+
+      - run: go vet ./...
+
+      - run: go build ./...
+
+      - name: Test with coverage
+        run: go test -coverprofile=coverage.out ./...
+
+      - name: Enforce coverage gate
+        run: |
+          # internal/scsiusb/usbdevice.go only talks to real USB hardware
+          # and can't be meaningfully unit-tested; it's excluded from the
+          # coverage total the same way locally (see test.sh / README.md).
+          grep -v internal/scsiusb/usbdevice.go coverage.out > coverage.filtered.out
+          go tool cover -html=coverage.filtered.out -o coverage.html
+          TOTAL=$(go tool cover -func=coverage.filtered.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "Total coverage (excluding usbdevice.go): ${TOTAL}%"
+          awk -v total="$TOTAL" -v min="$MIN_COVERAGE" 'BEGIN { exit (total + 0 >= min + 0) ? 0 : 1 }' || {
+            echo "::error::Coverage ${TOTAL}% is below the ${MIN_COVERAGE}% target"
+            exit 1
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: coverage.html

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doxie Scanner</title>
+  <link rel="stylesheet" href="vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="vendor/cropper.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar navbar-expand navbar-dark bg-primary mb-4">
+    <div class="container">
+      <span class="navbar-brand mb-0 h1">Doxie Scanner</span>
+      <span id="scanner-badge" class="badge rounded-pill text-bg-secondary">checking…</span>
+    </div>
+  </nav>
+
+  <main class="container pb-5">
+    <div class="row g-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-body">
+            <h2 class="h5 card-title">New scan</h2>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="duplex-toggle">
+                <label class="form-check-label" for="duplex-toggle">Duplex (both sides)</label>
+              </div>
+              <button id="start-scan-btn" type="button" class="btn btn-primary" disabled title="Waiting for scanner connection…">Start scan</button>
+              <div id="scan-progress" class="text-muted small d-none">
+                Scanning… <span id="scan-progress-count">0</span> page(s) so far
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-4">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Scans</span>
+          </div>
+          <div id="job-list" class="list-group list-group-flush"></div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-8">
+        <div id="job-detail-empty" class="text-muted">Select a scan to view its pages.</div>
+        <div id="job-detail" class="d-none">
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+              <input id="job-name-input" type="text" class="form-control form-control-sm" style="width:auto">
+              <button id="job-rename-btn" class="btn btn-sm btn-outline-secondary">Rename</button>
+            </div>
+            <div class="d-flex gap-2">
+              <button id="job-export-pdf-btn" class="btn btn-sm btn-outline-success">Export scan as PDF</button>
+              <button id="job-delete-btn" class="btn btn-sm btn-outline-danger">Delete scan</button>
+            </div>
+          </div>
+          <p class="text-muted small mb-2">Duplex scans number each side as its own page. Drag a tile to reorder it. Click a tile to view, rotate, crop, export, or delete it.</p>
+          <div id="page-grid"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="combine-bar" class="d-none">
+    <div class="container d-flex align-items-center gap-3 flex-wrap py-2">
+      <span><strong id="combine-count">0</strong> page(s) selected</span>
+      <input id="combine-title" type="text" class="form-control form-control-sm" style="width:auto" placeholder="Document title">
+      <button id="combine-btn" class="btn btn-success btn-sm">Combine into PDF</button>
+      <button id="combine-clear-btn" class="btn btn-outline-secondary btn-sm">Clear selection</button>
+    </div>
+  </div>
+
+  <div class="modal fade" id="page-modal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="page-modal-title">Page</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-center">
+          <div class="page-modal-image-wrap">
+            <img id="page-modal-image" src="" alt="Page">
+          </div>
+        </div>
+        <div class="modal-footer flex-wrap justify-content-center gap-2" id="page-modal-view-actions">
+          <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary" id="pm-rotate-left" title="Rotate left 90°">⟲ Rotate Left</button>
+            <button type="button" class="btn btn-outline-secondary" id="pm-rotate-right" title="Rotate right 90°">⟳ Rotate Right</button>
+          </div>
+          <button type="button" class="btn btn-outline-secondary" id="pm-crop-start">Crop</button>
+          <input type="checkbox" class="btn-check" id="pm-combine-check" autocomplete="off">
+          <label class="btn btn-outline-secondary" for="pm-combine-check">Select for combine</label>
+          <div class="dropdown">
+            <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">Export</button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item pm-export-link" href="#" data-format="png">PNG</a></li>
+              <li><a class="dropdown-item pm-export-link" href="#" data-format="jpg">JPEG</a></li>
+              <li><a class="dropdown-item pm-export-link" href="#" data-format="pdf">PDF</a></li>
+            </ul>
+          </div>
+          <button type="button" class="btn btn-outline-danger" id="pm-delete">Delete page</button>
+        </div>
+        <div class="modal-footer d-none justify-content-center gap-2" id="page-modal-crop-actions">
+          <button type="button" class="btn btn-secondary" id="pm-crop-cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="pm-crop-save">Save crop</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="busy-overlay" class="d-none">
+    <div class="spinner-border text-light" role="status"><span class="visually-hidden">Working…</span></div>
+  </div>
+
+  <script src="vendor/bootstrap.bundle.min.js"></script>
+  <script src="vendor/cropper.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

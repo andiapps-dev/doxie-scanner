@@ -1,0 +1,10 @@
+# Grants any local user (and, more importantly, an unprivileged process
+# inside a Docker container with /dev/bus/usb passed through) read/write
+# access to the Doxie Pro DX400 scanner's USB device node, without
+# needing to run as root.
+#
+# Install: copy this file to /etc/udev/rules.d/ on the host, then
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# VID 2740 / PID 000c is the Doxie Pro DX400 (Avision-based).
+SUBSYSTEM=="usb", ATTR{idVendor}=="2740", ATTR{idProduct}=="000c", MODE="0666"

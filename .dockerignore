@@ -1,0 +1,6 @@
+.git
+.github
+*.md
+coverage.out
+coverage.html
+data/
