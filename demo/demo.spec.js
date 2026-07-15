@@ -56,6 +56,30 @@ async function clickAt(page, locator) {
   await page.mouse.up();
 }
 
+// Same idea as clickAt, but without a click — for pointing the cursor at
+// something purely informational (a status badge) that isn't itself an
+// interactive control.
+async function pointAt(page, locator) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 20 });
+}
+
+// Presses down on locator (a Cropper.js resize handle) and drags it to an
+// absolute page position. Unlike app.js's own page-tile drag-and-drop,
+// Cropper.js resizes its crop box via plain mousedown/mousemove/mouseup —
+// no native HTML5 draggable involved — so a real press-move-release
+// genuinely resizes it, the same as an actual user dragging the handle.
+async function dragHandle(page, locator, targetX, targetY) {
+  const box = await locator.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 15 });
+  await page.waitForTimeout(150);
+  await page.mouse.down();
+  await page.mouse.move(targetX, targetY, { steps: 20 });
+  await page.waitForTimeout(150);
+  await page.mouse.up();
+}
+
 // app.js implements its own drag-and-drop (dragstart/dragover/drop
 // listeners doing live DOM reordering) rather than relying on any
 // library, and reads only clientX/clientY plus dataTransfer.effectAllowed
@@ -141,7 +165,8 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     const badge = page.locator('#scanner-badge');
     await expect(badge).toHaveText(/not connected/i, { timeout: 10_000 });
     await expect(page.locator('#start-scan-btn')).toBeDisabled();
-    await beat(page);
+    await pointAt(page, badge);
+    await beat(page, 1200);
 
     // Seed data: two scans should already be listed.
     const jobList = page.locator('#job-list');
@@ -150,7 +175,109 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await beat(page, 1200);
   });
 
-  test('2 - browse, rotate, and crop a page', async ({ page }) => {
+  test('2 - start and run a scan', async ({ page }) => {
+    // This container has no physical scanner attached, so the badge
+    // would otherwise stay red for the whole recording and "Start scan"
+    // would stay disabled forever — there'd be nothing to show. Instead,
+    // fake a connected scanner and a completed scan entirely at the
+    // network layer (page.route intercepts), so the recording can also
+    // show what using the app actually looks like. Nothing server-side
+    // or in the real driver is touched; the two real seed jobs are
+    // untouched too, since this fake job only ever exists in this test's
+    // mocked responses.
+    const FAKE_JOB_ID = 'demo-live-scan';
+    const FAKE_JOB_NAME = 'Scan (demo)';
+
+    // Reuse a real seed page's actual image bytes for the fake scan's
+    // page, so the result looks like a real document rather than a
+    // blank/broken image.
+    const pageBytes = await (await page.request.get('/api/scans/demo-invoice/pages/1')).body();
+    const realJobs = await (await page.request.get('/api/scans')).json();
+
+    await page.route('**/api/scanner/status', (route) =>
+      route.fulfill({ json: { connected: true, vid: '2740', pid: '000c', driver: 'doxie-dx400' } }),
+    );
+
+    await page.route('**/api/scans', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({ status: 202, json: { jobId: FAKE_JOB_ID, status: 'running' } });
+      } else {
+        const fakeSummary = {
+          id: FAKE_JOB_ID,
+          name: FAKE_JOB_NAME,
+          createdAt: new Date().toISOString(),
+          status: 'completed',
+          pageCount: 1,
+          duplex: false,
+        };
+        await route.fulfill({ json: [fakeSummary, ...realJobs] });
+      }
+    });
+
+    // The frontend polls GET /api/scans/{id} once a second while a scan
+    // is running; report "running" a couple of times so the page count
+    // in the UI actually ticks up, then "completed" with one page.
+    let pollCount = 0;
+    await page.route(`**/api/scans/${FAKE_JOB_ID}`, async (route) => {
+      pollCount++;
+      if (pollCount < 3) {
+        await route.fulfill({
+          json: {
+            id: FAKE_JOB_ID,
+            name: FAKE_JOB_NAME,
+            driver: 'doxie-dx400',
+            createdAt: new Date().toISOString(),
+            status: 'running',
+            duplex: false,
+            dpi: 300,
+            pageCount: 0,
+            pages: [],
+            pagesScanned: pollCount,
+          },
+        });
+      } else {
+        await route.fulfill({
+          json: {
+            id: FAKE_JOB_ID,
+            name: FAKE_JOB_NAME,
+            driver: 'doxie-dx400',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            status: 'completed',
+            duplex: false,
+            dpi: 300,
+            pageCount: 1,
+            pages: [{ index: 1, file: 'page-001.png', widthPx: 850, heightPx: 1100 }],
+          },
+        });
+      }
+    });
+
+    await page.route(`**/api/scans/${FAKE_JOB_ID}/pages/1*`, (route) =>
+      route.fulfill({ contentType: 'image/png', body: pageBytes }),
+    );
+
+    await page.goto('/');
+    await installCursor(page);
+
+    const badge = page.locator('#scanner-badge');
+    await expect(badge).toHaveText(/scanner connected/i, { timeout: 5_000 });
+    await expect(page.locator('#start-scan-btn')).toBeEnabled();
+    await pointAt(page, badge);
+    await beat(page, 1200);
+
+    await clickAt(page, page.locator('#start-scan-btn'));
+    await expect(page.locator('#scan-progress')).toBeVisible();
+    await beat(page, 1800);
+
+    await expect(page.locator('#scan-progress')).toBeHidden({ timeout: 10_000 });
+    const jobList = page.locator('#job-list');
+    await expect(jobList.getByText(FAKE_JOB_NAME)).toBeVisible();
+    await expect(page.locator('#page-grid').locator('.page-tile')).toHaveCount(1);
+    await beat(page, 1200);
+  });
+
+  test('3 - browse, rotate, and crop a page', async ({ page }) => {
     await page.goto('/');
     await installCursor(page);
     const jobList = page.locator('#job-list');
@@ -183,7 +310,22 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
 
     await clickAt(page, page.locator('#pm-crop-start'));
     await expect(page.locator('#page-modal-crop-actions')).toBeVisible();
-    await beat(page, 1000); // let the crop handles render for the recording
+    await beat(page, 800); // let the crop handles render
+
+    // Cropper.js starts with autoCropArea: 1 — a crop box already
+    // covering the whole image — so saving immediately would be a no-op
+    // crop. Drag the bottom-right handle inward (keeping the top-left
+    // corner fixed) to an actual smaller region first, so this
+    // demonstrates and exercises a real crop.
+    const cropBoxBox = await page.locator('.cropper-crop-box').boundingBox();
+    await dragHandle(
+      page,
+      page.locator('.cropper-point.point-se'),
+      cropBoxBox.x + cropBoxBox.width * 0.6,
+      cropBoxBox.y + cropBoxBox.height * 0.6,
+    );
+    await beat(page, 800);
+
     await clickAt(page, page.locator('#pm-crop-save'));
     await expect(page.locator('#page-modal-view-actions')).toBeVisible();
     await beat(page, 1000);
@@ -192,7 +334,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(modal).toBeHidden();
   });
 
-  test('3 - combine pages from multiple scans into one pdf', async ({ page }) => {
+  test('4 - combine pages from multiple scans into one pdf', async ({ page }) => {
     await page.goto('/');
     await installCursor(page);
     const jobList = page.locator('#job-list');
@@ -261,7 +403,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(combineBar).toBeHidden();
   });
 
-  test('4 - rename a scan and delete a page', async ({ page }) => {
+  test('5 - rename a scan and delete a page', async ({ page }) => {
     await page.goto('/');
     await installCursor(page);
     const jobList = page.locator('#job-list');
