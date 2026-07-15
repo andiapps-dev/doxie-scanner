@@ -1,7 +1,7 @@
 /* Minimal overrides only — Bootswatch Flatly does the heavy lifting. */
 
-/* Page grid: tiles fill available width left-to-right, then wrap to the
-   next row — however many columns actually fit, rather than a fixed
+/* Page grid: thumbnails fill available width left-to-right, then wrap to
+   the next row — however many columns actually fit, rather than a fixed
    Bootstrap breakpoint count. */
 #page-grid {
   display: grid;
@@ -9,7 +9,7 @@
   gap: 1rem;
 }
 
-.page-tile {
+.page-thumbnail {
   position: relative;
   border: 1px solid var(--bs-border-color);
   border-radius: var(--bs-border-radius);
@@ -18,10 +18,11 @@
   cursor: grab;
 }
 
-/* Dragged tile is moved live in the DOM to its landing spot during
-   dragover (see app.js) — the tile itself, faded, is the only "indicator"
-   needed; there's no separate drop-line to keep in sync with it. */
-.page-tile.dragging {
+/* Dragged thumbnail is moved live in the DOM to its landing spot during
+   dragover (see app.js) — the thumbnail itself, faded, is the only
+   "indicator" needed; there's no separate drop-line to keep in sync
+   with it. */
+.page-thumbnail.dragging {
   opacity: 0.4;
 }
 
@@ -34,7 +35,7 @@
   cursor: pointer;
 }
 
-.page-tile-overlay {
+.page-thumbnail-overlay {
   position: absolute;
   top: 0.25rem;
   left: 0.25rem;
@@ -45,11 +46,11 @@
   pointer-events: none;
 }
 
-.page-tile-overlay .form-check-input {
+.page-thumbnail-overlay .form-check-input {
   pointer-events: auto;
 }
 
-.page-tile-footer {
+.page-thumbnail-footer {
   padding: 0.35rem 0.5rem;
   font-size: 0.8rem;
   color: var(--bs-secondary-color);
