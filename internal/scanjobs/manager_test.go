@@ -25,7 +25,12 @@ func testImage(w, h int, c color.NRGBA) *image.NRGBA {
 
 func waitForJobDone(t *testing.T, m *Manager) *JobState {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	// Generous margin: these fakes finish almost instantly in practice, but
+	// a shared/throttled CI runner can occasionally starve the background
+	// goroutine of scheduling time for longer than a tight deadline allows,
+	// producing a flaky failure on otherwise-identical code (observed once
+	// in CI, unreproducible locally, and immediately green on retry).
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		state := m.CurrentJob()
 		if state != nil && state.Status != storage.StatusRunning {

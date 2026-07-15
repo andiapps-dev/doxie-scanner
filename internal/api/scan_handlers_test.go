@@ -16,7 +16,11 @@ import (
 
 func waitForJobDone(t *testing.T, srv *Server) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	// Generous margin: see the identical comment on scanjobs' own
+	// waitForJobDone — a tight deadline here can flake on a
+	// shared/throttled CI runner even though the fakes finish almost
+	// instantly in practice.
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if cur := srv.jobs.CurrentJob(); cur == nil || cur.Status != storage.StatusRunning {
 			return
