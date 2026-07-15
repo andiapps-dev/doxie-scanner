@@ -14,18 +14,28 @@ is a rerun instead of a manual capture.
    invoice and a cover letter, entirely made-up content, no real scanned
    documents involved.
 2. Builds the `doxie-scanner` image and starts it with that seed data
-   mounted, deliberately with no USB device attached, so the demo shows
-   the real "scanner not connected" state rather than faking a
-   connection.
+   mounted, deliberately with no USB device attached, so most of the
+   recording shows the real "scanner not connected" state rather than
+   faking a connection.
 3. Runs `demo.spec.js` against it inside the official
    `mcr.microsoft.com/playwright` Docker image (the host has neither
    Node nor browsers installed, and doesn't need them for this) — it
-   clicks through the scan list, page viewer, rotate/crop, drag-to-reorder
-   pages, the combine-into-PDF bar (multi-job selection, drag-to-reorder,
-   remove, view-only preview), rename, and delete, with real `expect()`
+   clicks through the scan list, page viewer, rotate/crop (a real crop,
+   dragging Cropper.js's own resize handle), drag-to-reorder pages, the
+   combine-into-PDF bar (multi-job selection, drag-to-reorder, remove,
+   view-only preview), rename, and delete, with real `expect()`
    assertions at each step. Every run records video, not just failures.
-4. Converts that video to a palette-optimized GIF at
-   `output/doxie-scanner-demo.gif`.
+   A visible cursor dot is injected so the recording shows where each
+   click/drag actually lands.
+4. One segment ("Start and run a scan") is network-mocked via
+   `page.route` — connected status, a running scan's progress ticking
+   up, and its completed result — since this environment has no real
+   scanner to demonstrate that flow against. Nothing server-side or in
+   the real driver is touched; it only fakes what this one test's page
+   receives over the network, reusing a real seed page's actual image
+   bytes for the result so it still looks like a real document.
+5. Converts the recorded videos (with a title card stitched in front of
+   each) to a palette-optimized GIF at `output/doxie-scanner-demo.gif`.
 
 `output/doxie-scanner-demo.gif` is committed on purpose — it's embedded
 in the top-level README, so it needs to actually exist in the repo (not

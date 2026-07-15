@@ -41,6 +41,7 @@ TITLE_DUR=1.6
 FONT="$(fc-match -f '%{file}\n' 'DejaVu Sans:bold' 2>/dev/null || echo /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf)"
 CAPTIONS=(
     "Live scanner connection status"
+    "Start and run a scan"
     "Browse, rotate, and crop a page"
     "Combine pages from multiple scans into one PDF"
     "Rename a scan and delete a page"
