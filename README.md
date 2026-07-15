@@ -1,16 +1,23 @@
 # Doxie Scanner
 
-A standalone, self-hosted web app for driving a **Doxie Pro DX400** document
-scanner. Talks to the scanner directly over raw SCSI-over-USB-bulk — no
+A standalone, linux focused, self-hosted web app for driving a **Doxie Pro DX400** document scanner. Talks to the scanner directly over raw SCSI-over-USB-bulk — no
 SANE, no `scanimage`, no vendor drivers — with a simple web UI for
 scanning, reviewing, rotating/cropping, and exporting pages as PNG, JPEG,
 or PDF.
 
 Ships as a single Docker image with the frontend baked into the binary.
 
+**Linux only, and specifically the Doxie Pro DX400** — this isn't a
+general Avision/Doxie driver. It talks to one exact device (USB VID:PID
+`2740:000c`) via the raw USB device nodes under `/dev/bus/usb`, which is
+a Linux-specific interface; it will not run on macOS or Windows, and it
+will not recognize any other scanner, including other Doxie models.
+
 > Not affiliated with, endorsed by, or sponsored by Doxie, Apparent Corp.,
 > or Avision. "Doxie" and "Doxie Pro" are trademarks of their respective
 > owners, referenced here only to describe hardware compatibility.
+
+![Doxie Scanner demo](demo/output/doxie-scanner-demo.gif)
 
 ## How this was built
 
@@ -144,9 +151,11 @@ lsusb -d 2740:000c
   in flight.
 - **Combine into PDF**: check "select for combine" on any pages (in the
   grid or the viewer) — across as many different scans as you like — and
-  a bar at the bottom lets you download them as one ordered PDF. For a
-  single scan, "Export scan as PDF" in its header does the same for every
-  page in that scan in one click.
+  a bar at the bottom shows a thumbnail of every page you've picked so
+  far. Drag those thumbnails to set the order the combined PDF comes out
+  in, or click the × on one to drop it from the selection, all without
+  leaving the bar. For a single scan, "Export scan as PDF" in its header
+  does the same for every page in that scan in one click.
 
 ## Scripts
 
@@ -250,28 +259,15 @@ Versioning](https://semver.org/): `vMAJOR.MINOR.PATCH` (e.g. `v1.2.0`).
 Bump PATCH for fixes, MINOR for backward-compatible features, MAJOR for
 a breaking change to the HTTP API or the on-disk `meta.json` schema.
 
-This repo is published from a private monorepo via a subtree-split
-script (`Web/doxie-scanner-scripts/github-push.sh` there), so cutting a
-release is:
-
-1. Update `CHANGELOG.md`: move the `[Unreleased]` entries under a new
-   `## [x.y.z] - YYYY-MM-DD` heading.
-2. Commit that change.
-3. Run `./github-push.sh` (from the monorepo side, no argument) — this
-   publishes the current code to this repo's `main`, auto-detects the
-   highest `vX.Y.Z` tag already here, bumps its PATCH number, and pushes
-   that as the new tag, all in one step. Pass an explicit version instead
-   (`./github-push.sh v1.3.0`) for a MINOR/MAJOR bump, or `--no-tag` to
-   publish without releasing.
-
-The tag push does the rest automatically: `.github/workflows/docker-publish.yml`
-re-runs the full CI test/coverage gate, then — only if that passes —
-builds the image with `main.version` set to the tag (surfaced at
-`GET /api/version`), pushes `ghcr.io/andiapps-dev/doxie-scanner` tagged
-`X.Y.Z`, `X.Y`, and `latest`, and creates a GitHub Release for the tag
-with auto-generated notes. A plain push to `main` with no tag only runs
-CI — it never publishes an image, so `:latest` always means "latest
-release," not "whatever's currently on main."
+Pushing a `vX.Y.Z` tag does the rest automatically:
+`.github/workflows/docker-publish.yml` re-runs the full CI test/coverage
+gate, then — only if that passes — builds the image with `main.version`
+set to the tag (surfaced at `GET /api/version`), pushes
+`ghcr.io/andiapps-dev/doxie-scanner` tagged `X.Y.Z`, `X.Y`, and `latest`,
+and creates a GitHub Release for the tag with auto-generated notes. A
+plain push to `main` with no tag only runs CI — it never publishes an
+image, so `:latest` always means "latest release," not "whatever's
+currently on main."
 
 ## Duplex is on by default
 

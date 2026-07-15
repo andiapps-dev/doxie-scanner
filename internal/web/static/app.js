@@ -5,8 +5,15 @@
     jobs: [],
     selectedJobId: null,
     selectedJob: null,
-    // combineSelection maps "jobId|page" -> {jobId, page}
+    // combineSelection maps "jobId|page" -> {jobId, page}; combineOrder is
+    // the same keys, but as an ordered array — the actual order pages will
+    // be combined in, which the user controls by dragging thumbnails in
+    // the combine bar. The Map is for O(1) "is this selected" lookups
+    // elsewhere (checkboxes); combineOrder is the source of truth for
+    // display order and for the final combine request.
     combineSelection: new Map(),
+    combineOrder: [],
+    combineDragKey: null,
     scanPollTimer: null,
     cropper: null,
     // Bumped on every reload so image URLs change and the browser can't
@@ -255,8 +262,10 @@
     const key = combineKey(jobId, page);
     if (state.combineSelection.has(key)) {
       state.combineSelection.delete(key);
+      state.combineOrder = state.combineOrder.filter((k) => k !== key);
     } else {
       state.combineSelection.set(key, { jobId, page });
+      state.combineOrder.push(key);
     }
     renderJobDetail();
     renderCombineBar();
@@ -265,18 +274,100 @@
     }
   }
 
+  // removeFromCombine deselects one page directly from the combine bar's
+  // thumbnail strip (rather than from wherever its page tile happens to
+  // be, which might be a different scan entirely than the one currently
+  // open).
+  function removeFromCombine(key) {
+    const entry = state.combineSelection.get(key);
+    if (!entry) return;
+    toggleCombine(entry.jobId, entry.page);
+  }
+
   function renderCombineBar() {
     const bar = el('combine-bar');
-    const count = state.combineSelection.size;
+    const count = state.combineOrder.length;
     el('combine-count').textContent = count;
     bar.classList.toggle('d-none', count === 0);
+
+    const thumbs = el('combine-thumbs');
+    thumbs.innerHTML = '';
+    state.combineOrder.forEach((key, i) => {
+      const entry = state.combineSelection.get(key);
+      if (entry) thumbs.appendChild(renderCombineThumb(key, entry, i + 1));
+    });
+  }
+
+  // renderCombineThumb renders one draggable, removable thumbnail in the
+  // combine bar. Dragging reorders combineOrder directly (the same
+  // live-DOM-reorder technique as the main page grid); there's no server
+  // round-trip involved, since combine order only matters at the moment
+  // "Combine into PDF" is clicked. `position` is this thumbnail's place
+  // in the combined document (1, 2, 3...), not its original page number
+  // within its source scan — two pages from different scans can both be
+  // "page 1" in their own right, so labeling by source page number was
+  // ambiguous here.
+  function renderCombineThumb(key, entry, position) {
+    const tile = document.createElement('div');
+    tile.className = 'combine-thumb';
+    tile.draggable = true;
+    tile.dataset.key = key;
+
+    const src = pageImageUrl(entry.jobId, entry.page);
+    tile.innerHTML = `
+      <img src="${src}" alt="Page ${position} of combined document">
+      <button type="button" class="combine-thumb-remove" title="Remove from selection">&times;</button>
+      <div class="combine-thumb-label">${position}</div>
+    `;
+
+    tile.querySelector('img').addEventListener('click', () => {
+      openPageViewer(entry.jobId, entry.page, { viewOnly: true });
+    });
+
+    tile.querySelector('.combine-thumb-remove').addEventListener('click', () => {
+      removeFromCombine(key);
+    });
+
+    tile.addEventListener('dragstart', (e) => {
+      state.combineDragKey = key;
+      tile.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    tile.addEventListener('dragend', () => {
+      tile.classList.remove('dragging');
+      state.combineDragKey = null;
+      renderCombineBar();
+    });
+    tile.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (state.combineDragKey == null || state.combineDragKey === key) return;
+      const dragged = el('combine-thumbs').querySelector('.combine-thumb.dragging');
+      if (!dragged) return;
+      const rect = tile.getBoundingClientRect();
+      const before = e.clientX - rect.left < rect.width / 2;
+      tile.parentNode.insertBefore(dragged, before ? tile : tile.nextSibling);
+    });
+    tile.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (state.combineDragKey == null) return;
+      // Commit the order directly from the live DOM arrangement — what
+      // you saw while dragging is what gets combined.
+      state.combineOrder = Array.from(el('combine-thumbs').querySelectorAll('.combine-thumb')).map((t) => t.dataset.key);
+    });
+
+    return tile;
   }
 
   // ---- Page viewer / editor modal ----
 
-  function openPageViewer(jobId, pageIndex) {
+  // opts.viewOnly hides every action (rotate/crop/export/delete/combine
+  // checkbox) for a plain look-without-touching preview — used when
+  // opening from the combine bar's thumbnails, where you're reviewing a
+  // pick, not editing it.
+  function openPageViewer(jobId, pageIndex, opts = {}) {
     state.viewer = { jobId, page: pageIndex };
     loadViewerImage();
+    el('page-modal-view-actions').classList.toggle('d-none', !!opts.viewOnly);
     pageModal().show();
   }
 
@@ -347,7 +438,9 @@
     if (!confirm('Delete this page?')) return;
     await withBusy(async () => {
       await api(`/api/scans/${jobId}/pages/${page}`, { method: 'DELETE' });
-      state.combineSelection.delete(combineKey(jobId, page));
+      const key = combineKey(jobId, page);
+      state.combineSelection.delete(key);
+      state.combineOrder = state.combineOrder.filter((k) => k !== key);
       renderCombineBar();
       pageModal().hide();
       await selectJob(jobId);
@@ -377,10 +470,10 @@
   }
 
   async function combineSelected() {
-    const pages = Array.from(state.combineSelection.values()).map((p) => ({
-      jobId: p.jobId,
-      page: p.page,
-    }));
+    const pages = state.combineOrder
+      .map((key) => state.combineSelection.get(key))
+      .filter(Boolean)
+      .map((p) => ({ jobId: p.jobId, page: p.page }));
     const title = el('combine-title').value.trim() || 'combined';
     await downloadCombinedPDF(pages, title);
   }
@@ -475,6 +568,7 @@
   el('combine-btn').addEventListener('click', combineSelected);
   el('combine-clear-btn').addEventListener('click', () => {
     state.combineSelection.clear();
+    state.combineOrder = [];
     renderJobDetail();
     renderCombineBar();
   });
