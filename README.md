@@ -273,12 +273,25 @@ with auto-generated notes. A plain push to `main` with no tag only runs
 CI — it never publishes an image, so `:latest` always means "latest
 release," not "whatever's currently on main."
 
-## A known hardware quirk
+## Duplex is on by default
 
-Duplex scans on this scanner exhibit a color cast on the back side — this
-is a characteristic of the DX400's duplex hardware path itself, not a bug
-in this driver, and isn't something this app attempts to silently
-correct. Simplex (front-only) scans are unaffected.
+Earlier revisions of this README warned of a front-side color cast
+whenever duplex mode was requested, and defaulted the UI to simplex to
+avoid it. That didn't hold up: isolating the duplex SET WINDOW payload's
+two changed bytes (the doubled `line_count` and the bit that enables the
+scanner's second CIS sensor) and testing each independently against real
+hardware, on a freshly power-cycled scanner, produced **no cast under
+any combination** — including full duplex. The original observation was
+most likely a symptom of the scanner having degraded from many rapid
+back-to-back test scans in one session (a confound the original hardware
+research notes explicitly flagged and never re-verified against a clean
+device). Duplex is now the default.
+
+One thing this hasn't specifically tested: whether the cast could still
+depend on the rear sensor reading actual printed content rather than
+blank paper (the test page used was blank on the back). If you notice a
+color cast in practice, that's the next thing to isolate — please open
+an issue with a sample image.
 
 ## License
 

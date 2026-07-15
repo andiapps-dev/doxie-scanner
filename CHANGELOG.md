@@ -7,6 +7,14 @@ like `v1.2.0`, and each one gets its own section below.
 
 ## [Unreleased]
 
+### Changed
+
+- Duplex scanning is now on by default. The previously documented
+  front-side color cast didn't reproduce under isolated testing against
+  a freshly power-cycled scanner (see README's "Duplex is on by
+  default"); it was most likely a symptom of a degraded scanner state
+  from earlier back-to-back testing, not an inherent hardware limit.
+
 ## [1.0.0] - 2026-07-15
 
 ### Added
