@@ -33,6 +33,17 @@ async function dragReorder(page, source, target, { before = true } = {}) {
   );
 }
 
+// Every action in this spec (click, fill, drag) resolves in a headless
+// browser essentially instantly — there's no mouse travel or human
+// hesitation to naturally pad the recording out, so back-to-back actions
+// produce a handful of frames per state that flash by unwatchably in the
+// GIF. `beat` is a deliberate pause after each visually meaningful state
+// change, giving a viewer (and the recording) time to actually register
+// what just happened before the next action fires.
+async function beat(page, ms = 800) {
+  await page.waitForTimeout(ms);
+}
+
 // Split into several small, numbered tests rather than one long one, so
 // each gets its own Playwright-recorded video — record-demo.sh stitches
 // a title card in front of each clip (matching the numbered names below,
@@ -55,12 +66,13 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     const badge = page.locator('#scanner-badge');
     await expect(badge).toHaveText(/not connected/i, { timeout: 10_000 });
     await expect(page.locator('#start-scan-btn')).toBeDisabled();
+    await beat(page);
 
     // Seed data: two scans should already be listed.
     const jobList = page.locator('#job-list');
     await expect(jobList.getByText('Q3 Invoice — Rivertown Supply')).toBeVisible();
     await expect(jobList.getByText('Cover Letter Draft')).toBeVisible();
-    await page.waitForTimeout(600); // hold the frame for the recording
+    await beat(page, 1200);
   });
 
   test('2 - browse, rotate, and crop a page', async ({ page }) => {
@@ -70,6 +82,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
 
     await jobList.getByText('Q3 Invoice — Rivertown Supply').click();
     await expect(grid.locator('.page-tile')).toHaveCount(2);
+    await beat(page);
 
     // Reorder: drag page 2 in front of page 1, then persist via the
     // PATCH /pages/order call the UI fires on drop.
@@ -79,21 +92,25 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     ]);
     expect(reorderResp.ok()).toBeTruthy();
     await expect(grid.locator('.page-tile').first()).toHaveAttribute('data-page', '2');
+    await beat(page, 1000);
 
     // Open the (now first) tile, rotate it, then crop it.
     await grid.locator('.page-tile').first().locator('.page-thumb').click();
     const modal = page.locator('#page-modal');
     await expect(modal).toBeVisible();
     await expect(page.locator('#page-modal-image')).toBeVisible();
+    await beat(page);
 
     await page.locator('#pm-rotate-right').click();
     await expect(page.locator('#busy-overlay')).toBeHidden();
+    await beat(page, 1000);
 
     await page.locator('#pm-crop-start').click();
     await expect(page.locator('#page-modal-crop-actions')).toBeVisible();
-    await page.waitForTimeout(500); // let the crop handles render for the recording
+    await beat(page, 1000); // let the crop handles render for the recording
     await page.locator('#pm-crop-save').click();
     await expect(page.locator('#page-modal-view-actions')).toBeVisible();
+    await beat(page, 1000);
 
     await page.locator('#page-modal .btn-close').click();
     await expect(modal).toBeHidden();
@@ -114,6 +131,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await jobList.getByText('Q3 Invoice — Rivertown Supply').click();
     await expect(grid.locator('.page-tile')).toHaveCount(2);
     await grid.locator('.page-tile[data-page="2"] .combine-check').check();
+    await beat(page);
 
     await jobList.getByText('Cover Letter Draft').click();
     await expect(grid.locator('.page-tile')).toHaveCount(1);
@@ -122,6 +140,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(combineBar).toBeVisible();
     await expect(page.locator('#combine-count')).toHaveText('2');
     await expect(thumbs).toHaveCount(2);
+    await beat(page, 1000);
 
     // Reorder by dragging the second thumbnail (the letter page) in
     // front of the first (the invoice page) — confirm the actual image
@@ -129,11 +148,13 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     const secondThumbSrc = await thumbs.nth(1).locator('img').getAttribute('src');
     await dragReorder(page, thumbs.nth(1), thumbs.nth(0));
     await expect(thumbs.first().locator('img')).toHaveAttribute('src', secondThumbSrc);
+    await beat(page, 1000);
 
     // Click a thumbnail for a view-only preview — no editing actions shown.
     await thumbs.first().locator('img').click();
     await expect(modal).toBeVisible();
     await expect(page.locator('#page-modal-view-actions')).toBeHidden();
+    await beat(page, 1200);
     await page.locator('#page-modal .btn-close').click();
     await expect(modal).toBeHidden();
 
@@ -142,17 +163,21 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     // it from the invoice scan's page grid, and combine both into a PDF.
     await thumbs.nth(1).locator('.combine-thumb-remove').click();
     await expect(thumbs).toHaveCount(1);
+    await beat(page, 1000);
 
     await jobList.getByText('Q3 Invoice — Rivertown Supply').click();
     await grid.locator('.page-tile[data-page="2"] .combine-check').check();
     await expect(thumbs).toHaveCount(2);
+    await beat(page);
 
     await page.locator('#combine-title').fill('Demo Combined');
+    await beat(page, 600);
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       page.locator('#combine-btn').click(),
     ]);
     expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+    await beat(page, 1000);
 
     await page.locator('#combine-clear-btn').click();
     await expect(combineBar).toBeHidden();
@@ -166,16 +191,22 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
 
     await jobList.getByText('Q3 Invoice — Rivertown Supply').click();
     await expect(grid.locator('.page-tile')).toHaveCount(2);
+    await beat(page);
 
     await page.locator('#job-name-input').fill('Q3 Invoice (renamed)');
+    await beat(page, 600);
     await page.locator('#job-rename-btn').click();
     await expect(jobList.getByText('Q3 Invoice (renamed)')).toBeVisible();
+    await beat(page, 1200);
 
     // Delete one page from it and confirm the page count drops.
     await grid.locator('.page-tile').first().locator('.page-thumb').click();
+    await expect(modal).toBeVisible();
+    await beat(page, 800);
     page.once('dialog', (d) => d.accept());
     await page.locator('#pm-delete').click();
     await expect(modal).toBeHidden();
     await expect(grid.locator('.page-tile')).toHaveCount(1);
+    await beat(page, 1000);
   });
 });
