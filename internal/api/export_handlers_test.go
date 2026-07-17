@@ -80,6 +80,12 @@ func TestHandleExportPage_PDF(t *testing.T) {
 	if !bytes.HasPrefix(rec.Body.Bytes(), []byte("%PDF")) {
 		t.Error("expected PDF magic bytes")
 	}
+	// Single-page PDF export always embeds JPEG (no format choice here —
+	// the plain PNG download right next to it in the export menu already
+	// covers the lossless case; see export_handlers.go's "pdf" case).
+	if !bytes.Contains(rec.Body.Bytes(), []byte{0xff, 0xd8, 0xff}) {
+		t.Error("expected a JPEG SOI marker embedded in the single-page PDF")
+	}
 }
 
 func TestHandleExportPage_UnsupportedFormat(t *testing.T) {
@@ -122,6 +128,72 @@ func TestHandleCombine_Success(t *testing.T) {
 	}
 	if !bytes.Contains([]byte(rec.Header().Get("Content-Disposition")), []byte("combined-doc.pdf")) {
 		t.Errorf("Content-Disposition = %q", rec.Header().Get("Content-Disposition"))
+	}
+}
+
+func TestHandleCombine_DefaultImageFormatIsJPEG(t *testing.T) {
+	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400"}}
+	srv, store := newTestServer(t, drv)
+	seedPageJob(t, store, "job-1")
+
+	rec := httptest.NewRecorder()
+	body := bytes.NewBufferString(`{"pages":[{"jobId":"job-1","page":1}]}`)
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/export/combine", body))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte{0xff, 0xd8, 0xff}) {
+		t.Error("expected a JPEG SOI marker when imageFormat is omitted")
+	}
+}
+
+func TestHandleCombine_ImageFormatJPEG(t *testing.T) {
+	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400"}}
+	srv, store := newTestServer(t, drv)
+	seedPageJob(t, store, "job-1")
+
+	rec := httptest.NewRecorder()
+	body := bytes.NewBufferString(`{"pages":[{"jobId":"job-1","page":1}],"imageFormat":"jpeg"}`)
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/export/combine", body))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte{0xff, 0xd8, 0xff}) {
+		t.Error("expected a JPEG SOI marker when imageFormat is \"jpeg\"")
+	}
+}
+
+func TestHandleCombine_ImageFormatPNG(t *testing.T) {
+	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400"}}
+	srv, store := newTestServer(t, drv)
+	seedPageJob(t, store, "job-1")
+
+	rec := httptest.NewRecorder()
+	body := bytes.NewBufferString(`{"pages":[{"jobId":"job-1","page":1}],"imageFormat":"png"}`)
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/export/combine", body))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	// fpdf embeds PNG pages by decoding to a raw FlateDecode-compressed
+	// pixel stream, not the original PNG file bytes — so no literal PNG
+	// signature survives in the output (unlike JPEG, which fpdf embeds
+	// via DCTDecode using the original byte stream as-is). Absence of a
+	// JPEG SOI marker is the only reliable format signal available here.
+	if bytes.Contains(rec.Body.Bytes(), []byte{0xff, 0xd8, 0xff}) {
+		t.Error("did not expect a JPEG SOI marker when imageFormat is \"png\"")
+	}
+}
+
+func TestHandleCombine_InvalidImageFormat(t *testing.T) {
+	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400"}}
+	srv, store := newTestServer(t, drv)
+	seedPageJob(t, store, "job-1")
+
+	rec := httptest.NewRecorder()
+	body := bytes.NewBufferString(`{"pages":[{"jobId":"job-1","page":1}],"imageFormat":"bmp"}`)
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/export/combine", body))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
 

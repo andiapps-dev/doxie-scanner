@@ -17,8 +17,22 @@ like `v1.2.0`, and each one gets its own section below.
   2, 3...), not their original page number, since two pages from
   different scans can otherwise both claim to be "page 1". Click a
   thumbnail for a plain, action-free preview of that page.
+- Combine-into-PDF and "Export scan as PDF" now let you choose PNG
+  (lossless) or JPEG (smaller) for how pages are embedded, defaulting to
+  JPEG. Real scans are noisy enough (CIS sensor noise) that PNG's
+  lossless compression barely helps — a typical page runs 8-14MB as PNG
+  but only 1-2MB as JPEG at quality 90 with no visible difference on text
+  content; PNG remains available for scans of photos/art where JPEG
+  artifacts would actually show.
 
 ### Changed
+
+- Standalone JPEG image export (the per-page export menu, not PDF) is
+  now quality 100, up from 90 — since PDF export is now the deliberately
+  smaller/convenience choice (see above), this is the deliberately
+  higher-quality one. The per-page PDF export option itself now embeds
+  JPEG (was PNG) with no separate toggle, since the plain PNG download
+  right next to it in the same menu already covers the lossless case.
 
 - Duplex scanning is now on by default. The previously documented
   front-side color cast didn't reproduce under isolated testing against

@@ -407,6 +407,17 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await clickAt(page, page.locator('#combine-title'));
     await page.locator('#combine-title').fill('Demo Combined');
     await beat(page, 600);
+
+    // Show off the PNG/JPEG choice — PNG (lossless) for photo/art
+    // content, JPEG (smaller, default) for the common text-scan case —
+    // before combining with the default JPEG selection still in effect.
+    await pointAt(page, page.locator('#combine-format'));
+    await beat(page, 600);
+    await page.locator('#combine-format').selectOption('png');
+    await beat(page, 800);
+    await page.locator('#combine-format').selectOption('jpeg');
+    await beat(page, 800);
+
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       clickAt(page, page.locator('#combine-btn')),
@@ -418,7 +429,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(combineBar).toBeHidden();
   });
 
-  test('5 - rename a scan and delete a page', async ({ page }) => {
+  test('5 - export a scan as pdf, rename it, and delete a page', async ({ page }) => {
     await page.goto('/');
     await installCursor(page);
     const jobList = page.locator('#job-list');
@@ -428,6 +439,17 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await clickAt(page, jobList.getByText('Q3 Invoice — Rivertown Supply'));
     await expect(grid.locator('.page-thumbnail')).toHaveCount(2);
     await beat(page);
+
+    // Export the whole scan as one PDF — same PNG/JPEG choice as the
+    // combine bar, defaulting to JPEG.
+    await pointAt(page, page.locator('#job-export-format'));
+    await beat(page, 600);
+    const [wholeScanDownload] = await Promise.all([
+      page.waitForEvent('download'),
+      clickAt(page, page.locator('#job-export-pdf-btn')),
+    ]);
+    expect(wholeScanDownload.suggestedFilename()).toMatch(/\.pdf$/);
+    await beat(page, 1000);
 
     await clickAt(page, page.locator('#job-name-input'));
     await page.locator('#job-name-input').fill('Q3 Invoice (renamed)');

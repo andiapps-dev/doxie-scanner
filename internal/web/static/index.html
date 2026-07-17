@@ -53,7 +53,11 @@
               <input id="job-name-input" type="text" class="form-control form-control-sm" style="width:auto">
               <button id="job-rename-btn" class="btn btn-sm btn-outline-secondary">Rename</button>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 align-items-center">
+              <select id="job-export-format" class="form-select form-select-sm" style="width:auto" title="Image format for the exported PDF">
+                <option value="jpeg" selected>JPEG (smaller)</option>
+                <option value="png">PNG (lossless)</option>
+              </select>
               <button id="job-export-pdf-btn" class="btn btn-sm btn-outline-success">Export scan as PDF</button>
               <button id="job-delete-btn" class="btn btn-sm btn-outline-danger">Delete scan</button>
             </div>
@@ -71,6 +75,10 @@
       <div class="d-flex align-items-center gap-3 flex-wrap">
         <span><strong id="combine-count">0</strong> page(s) selected — drag thumbnails to reorder</span>
         <input id="combine-title" type="text" class="form-control form-control-sm" style="width:auto" placeholder="Document title">
+        <select id="combine-format" class="form-select form-select-sm" style="width:auto" title="Image format for the combined PDF">
+          <option value="jpeg" selected>JPEG (smaller)</option>
+          <option value="png">PNG (lossless)</option>
+        </select>
         <button id="combine-btn" class="btn btn-success btn-sm">Combine into PDF</button>
         <button id="combine-clear-btn" class="btn btn-outline-secondary btn-sm">Clear selection</button>
       </div>

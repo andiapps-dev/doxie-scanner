@@ -44,7 +44,7 @@ CAPTIONS=(
     "Start and run a scan"
     "Browse, rotate, and crop a page"
     "Combine pages from multiple scans into one PDF"
-    "Rename a scan and delete a page"
+    "Export a scan as PDF, rename it, and delete a page"
 )
 
 cleanup() {

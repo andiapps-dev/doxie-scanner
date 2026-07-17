@@ -11,7 +11,9 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/jpeg"
 	"image/png"
+	"io"
 
 	"github.com/go-pdf/fpdf"
 )
@@ -22,19 +24,43 @@ import (
 // being stretched or squashed into a fixed Letter/A4 box.
 const ScanDPI = 300.0
 
-// pngEncode is a package-level indirection purely so tests can exercise
-// encode-failure paths without needing a contrived image.Image value
-// (see the equivalent pattern in internal/scanjobs).
+// jpegQuality is used whenever a PDF embeds pages as JPEG. This is
+// deliberately a different (lower) setting than the quality used for a
+// standalone JPEG image export (see export_handlers.go) — PDF export is
+// the deliberately smaller/convenience choice, while a standalone JPEG
+// download is the deliberately higher-quality choice. Callers who want
+// the best possible fidelity in a PDF should choose FormatPNG instead.
+const jpegQuality = 90
+
+// ImageFormat selects how CombinePagesPDF/SinglePagePDF embed each page's
+// pixels in the output PDF.
+type ImageFormat int
+
+const (
+	// FormatPNG embeds pages losslessly — larger files, no quality loss.
+	// Best for scans of photos/art where JPEG artifacts would show.
+	FormatPNG ImageFormat = iota
+	// FormatJPEG embeds pages as JPEG at jpegQuality — much smaller
+	// files, with no visible difference on typical text/document scans.
+	FormatJPEG
+)
+
+// pngEncode and jpegEncode are package-level indirections purely so
+// tests can exercise encode-failure paths without needing a contrived
+// image.Image value (see the equivalent pattern in internal/scanjobs).
 var pngEncode = png.Encode
+var jpegEncode = func(w io.Writer, img image.Image) error {
+	return jpeg.Encode(w, img, &jpeg.Options{Quality: jpegQuality})
+}
 
 // SinglePagePDF renders one image as a single-page PDF.
-func SinglePagePDF(img image.Image) ([]byte, error) {
-	return CombinePagesPDF([]image.Image{img})
+func SinglePagePDF(img image.Image, format ImageFormat) ([]byte, error) {
+	return CombinePagesPDF([]image.Image{img}, format)
 }
 
 // CombinePagesPDF renders images, in the given order, into one
 // multi-page PDF.
-func CombinePagesPDF(images []image.Image) ([]byte, error) {
+func CombinePagesPDF(images []image.Image, format ImageFormat) ([]byte, error) {
 	if len(images) == 0 {
 		return nil, fmt.Errorf("pdfexport: no images given")
 	}
@@ -52,13 +78,19 @@ func CombinePagesPDF(images []image.Image) ([]byte, error) {
 		h := float64(bounds.Dy()) / ScanDPI
 
 		var buf bytes.Buffer
-		if err := pngEncode(&buf, img); err != nil {
+		imageType := "PNG"
+		encode := pngEncode
+		if format == FormatJPEG {
+			imageType = "JPEG"
+			encode = jpegEncode
+		}
+		if err := encode(&buf, img); err != nil {
 			return nil, fmt.Errorf("pdfexport: encode page %d: %w", i, err)
 		}
 
 		pdf.AddPageFormat("P", fpdf.SizeType{Wd: w, Ht: h})
 		name := fmt.Sprintf("page%d", i)
-		opts := fpdf.ImageOptions{ImageType: "PNG"}
+		opts := fpdf.ImageOptions{ImageType: imageType}
 		pdf.RegisterImageOptionsReader(name, opts, &buf)
 		pdf.ImageOptions(name, 0, 0, w, h, false, opts, 0, "")
 	}

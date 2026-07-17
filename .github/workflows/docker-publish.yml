@@ -66,6 +66,31 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+
+      # generate_release_notes alone only produces GitHub's own
+      # auto-generated commit/PR list — it never reads CHANGELOG.md, so
+      # the curated notes maintained there never showed up on the
+      # release page. Extract this tag's own section (everything between
+      # its "## [x.y.z]" heading and the next "## [" heading) and use
+      # that as the release body instead; generate_release_notes stays
+      # on so GitHub appends its commit list after it, as a supplement.
+      - name: Extract this version's CHANGELOG section
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "[" ver "]")) { found=1; next }
+              next
+            }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::No CHANGELOG.md section found for [$version] — add one before tagging (see doxie-scanner-scripts/README.md)."
+            exit 1
+          fi
+
       - uses: softprops/action-gh-release@v2
         with:
+          body_path: release-notes.md
           generate_release_notes: true
