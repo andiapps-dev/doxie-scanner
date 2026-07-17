@@ -7,6 +7,8 @@ like `v1.2.0`, and each one gets its own section below.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-07-17
+
 ### Added
 
 - The combine-into-PDF bar now shows a thumbnail of every selected page,
