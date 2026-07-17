@@ -345,6 +345,17 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(page.locator('#page-modal-view-actions')).toBeVisible();
     await beat(page, 1000);
 
+    // Two JPEG export options now — high quality vs. smaller — so a
+    // compact single image doesn't require wrapping it in a PDF.
+    await clickAt(page, page.locator('#page-modal-view-actions .dropdown-toggle'));
+    await beat(page, 500);
+    const [exportDownload] = await Promise.all([
+      page.context().waitForEvent('download'),
+      clickAt(page, page.locator('.pm-export-link[data-quality="90"]')),
+    ]);
+    expect(exportDownload.suggestedFilename()).toMatch(/\.jpg$/);
+    await beat(page, 800);
+
     await clickAt(page, page.locator('#page-modal .btn-close'));
     await expect(modal).toBeHidden();
   });

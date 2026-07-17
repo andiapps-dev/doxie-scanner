@@ -64,6 +64,45 @@ func TestHandleExportPage_JPEG(t *testing.T) {
 	}
 }
 
+func TestHandleExportPage_JPEGQualityParam(t *testing.T) {
+	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400"}}
+	srv, store := newTestServer(t, drv)
+	seedJob(t, store, "job-1", []storage.PageMeta{{Index: 1, File: "page-001.png", WidthPx: 200, HeightPx: 200}})
+	if err := store.SavePageFile("job-1", "page-001.png", noisyPNGBytes(t, 200, 200)); err != nil {
+		t.Fatal(err)
+	}
+
+	get := func(url string) []byte {
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, url, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s: status = %d, want 200, body=%s", url, rec.Code, rec.Body.String())
+		}
+		return rec.Body.Bytes()
+	}
+
+	q100 := get("/api/scans/job-1/pages/1/export?format=jpg")
+	q90 := get("/api/scans/job-1/pages/1/export?format=jpg&quality=90")
+	if len(q90) >= len(q100) {
+		t.Errorf("expected quality=90 output (%d bytes) to be smaller than the default quality=100 output (%d bytes)", len(q90), len(q100))
+	}
+
+	// Explicitly requesting 100 should match the default (no quality
+	// param) exactly.
+	explicit100 := get("/api/scans/job-1/pages/1/export?format=jpg&quality=100")
+	if !bytes.Equal(q100, explicit100) {
+		t.Error("expected explicit quality=100 to match the default output exactly")
+	}
+
+	// Out-of-range/invalid values fall back to the 100 default rather
+	// than erroring, matching how an empty "format" already defaults to
+	// png elsewhere in this handler.
+	invalid := get("/api/scans/job-1/pages/1/export?format=jpg&quality=0")
+	if !bytes.Equal(q100, invalid) {
+		t.Error("expected an out-of-range quality to fall back to the default")
+	}
+}
+
 func TestHandleExportPage_PDF(t *testing.T) {
 	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400"}}
 	srv, store := newTestServer(t, drv)

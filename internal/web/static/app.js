@@ -591,7 +591,9 @@
       e.preventDefault();
       if (!state.viewer) return;
       const { jobId, page } = state.viewer;
-      const qs = new URLSearchParams({ format: a.dataset.format });
+      const params = { format: a.dataset.format };
+      if (a.dataset.quality) params.quality = a.dataset.quality;
+      const qs = new URLSearchParams(params);
       window.open(`/api/scans/${jobId}/pages/${page}/export?${qs}`, '_blank');
     });
   });

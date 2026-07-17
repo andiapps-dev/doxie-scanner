@@ -8,6 +8,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"net/http"
+	"strconv"
 
 	"github.com/andiapps-dev/doxie-scanner/internal/pdfexport"
 )
@@ -46,12 +47,20 @@ func (s *Server) handleExportPage(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
 			return
 		}
+		// Defaults to 100 — deliberately higher than pdfexport.JPEGQuality
+		// (90): this is the "I want the best quality" choice. The
+		// frontend's "JPEG (smaller)" option explicitly requests
+		// ?quality=90 (the same tier PDF export uses) for anyone who
+		// wants a compact JPEG without wrapping it in a PDF. Anything
+		// outside 1-100, or missing, falls back to the 100 default rather
+		// than erroring, matching how an empty "format" already defaults
+		// to png above.
+		quality := 100
+		if q, err := strconv.Atoi(r.URL.Query().Get("quality")); err == nil && q >= 1 && q <= 100 {
+			quality = q
+		}
 		var buf bytes.Buffer
-		// Quality 100 here is deliberately higher than the JPEG quality
-		// PDFs embed at (see pdfexport.jpegQuality): this standalone
-		// download is the "I want the best quality" choice, since PDF
-		// export is the "I want it smaller" choice.
-		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 100}); err != nil {
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
 			return
 		}

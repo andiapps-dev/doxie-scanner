@@ -24,13 +24,15 @@ import (
 // being stretched or squashed into a fixed Letter/A4 box.
 const ScanDPI = 300.0
 
-// jpegQuality is used whenever a PDF embeds pages as JPEG. This is
-// deliberately a different (lower) setting than the quality used for a
-// standalone JPEG image export (see export_handlers.go) — PDF export is
-// the deliberately smaller/convenience choice, while a standalone JPEG
-// download is the deliberately higher-quality choice. Callers who want
-// the best possible fidelity in a PDF should choose FormatPNG instead.
-const jpegQuality = 90
+// JPEGQuality is used whenever a PDF embeds pages as JPEG, and is also
+// reused by export_handlers.go's standalone "smaller" JPEG image export
+// option — the same "convenience" quality tier wherever it applies, so
+// there's one number to change rather than two kept in sync by hand.
+// Deliberately lower than export_handlers.go's default standalone JPEG
+// quality (100): that's the "I want the best quality" tier, this is the
+// "I want it smaller" one. Callers who want the best possible fidelity
+// in a PDF should choose FormatPNG instead.
+const JPEGQuality = 90
 
 // ImageFormat selects how CombinePagesPDF/SinglePagePDF embed each page's
 // pixels in the output PDF.
@@ -50,7 +52,7 @@ const (
 // image.Image value (see the equivalent pattern in internal/scanjobs).
 var pngEncode = png.Encode
 var jpegEncode = func(w io.Writer, img image.Image) error {
-	return jpeg.Encode(w, img, &jpeg.Options{Quality: jpegQuality})
+	return jpeg.Encode(w, img, &jpeg.Options{Quality: JPEGQuality})
 }
 
 // SinglePagePDF renders one image as a single-page PDF.
