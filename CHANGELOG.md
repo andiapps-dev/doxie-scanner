@@ -25,14 +25,20 @@ like `v1.2.0`, and each one gets its own section below.
   content; PNG remains available for scans of photos/art where JPEG
   artifacts would actually show.
 
+- The per-page export menu now has two JPEG options — "JPEG (high
+  quality)" (quality 100) and "JPEG (smaller)" (quality 90, the same
+  tier PDF export uses) — so getting a compact single image no longer
+  requires wrapping it in a PDF just to get the smaller file size.
+
 ### Changed
 
 - Standalone JPEG image export (the per-page export menu, not PDF) is
-  now quality 100, up from 90 — since PDF export is now the deliberately
-  smaller/convenience choice (see above), this is the deliberately
-  higher-quality one. The per-page PDF export option itself now embeds
-  JPEG (was PNG) with no separate toggle, since the plain PNG download
-  right next to it in the same menu already covers the lossless case.
+  now quality 100 by default, up from 90 — since PDF export is now the
+  deliberately smaller/convenience choice (see above), this is the
+  deliberately higher-quality one. The per-page PDF export option itself
+  now embeds JPEG (was PNG) with no separate toggle, since the plain PNG
+  download right next to it in the same menu already covers the lossless
+  case.
 
 - Duplex scanning is now on by default. The previously documented
   front-side color cast didn't reproduce under isolated testing against

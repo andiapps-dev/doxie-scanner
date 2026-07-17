@@ -105,35 +105,54 @@ docker run --rm \
 # length limit — that hash sorts unrelated to run order, so folder-name
 # sorting silently paired the wrong clip with the wrong title card in an
 # earlier version of this script. results.json (see the reporter config
-# in playwright.config.js) lists each test's video attachment in actual
-# declaration/run order regardless of folder naming, so pull it from
-# there instead.
+# in playwright.config.js) lists each numbered test as its own "spec" in
+# actual declaration/run order regardless of folder naming, so pull video
+# paths from there instead, grouped by spec.
+#
+# A single spec can have more than one video attachment: demo.spec.js's
+# per-page export links use window.open(url, '_blank'), which spawns a
+# real popup Page — Playwright records that popup's (near-instant, ~KB)
+# video separately from the main page's (multi-second, ~MB) one. Take the
+# largest attachment per spec rather than assuming exactly one.
+#
 # results.json's attachment paths are absolute as seen *inside* the
 # Playwright container (e.g. /work/test-results/.../video.webm, since
 # demo/ is bind-mounted to /work there) — strip that container prefix and
 # resolve against $SCRIPT_DIR, the same directory on the host.
-mapfile -t VIDEO_RELS < <(python3 - "$SCRIPT_DIR/results.json" <<'PYEOF'
-import json, sys
+mapfile -t VIDEO_RELS < <(python3 - "$SCRIPT_DIR/results.json" "$SCRIPT_DIR" <<'PYEOF'
+import json, os, sys
 
 with open(sys.argv[1]) as f:
     data = json.load(f)
-
-videos = []
-
-def walk(node):
-    if isinstance(node, dict):
-        if node.get('name') == 'video' and 'path' in node:
-            videos.append(node['path'])
-        for v in node.values():
-            walk(v)
-    elif isinstance(node, list):
-        for v in node:
-            walk(v)
-
-walk(data)
+script_dir = sys.argv[2]
 prefix = '/work/'
-for v in videos:
-    print(v[len(prefix):] if v.startswith(prefix) else v)
+
+def to_rel(p):
+    return p[len(prefix):] if p.startswith(prefix) else p
+
+def find_specs(node):
+    if isinstance(node, dict):
+        if 'title' in node and 'tests' in node:
+            yield node
+        for v in node.values():
+            yield from find_specs(v)
+    elif isinstance(node, list):
+        for item in node:
+            yield from find_specs(item)
+
+for spec in find_specs(data):
+    rels = []
+    for t in spec.get('tests', []):
+        for r in t.get('results', []):
+            for a in r.get('attachments', []):
+                if a.get('name') == 'video' and 'path' in a:
+                    rels.append(to_rel(a['path']))
+    if not rels:
+        continue
+    # Container path (/work/...) isn't resolvable from this host-side
+    # script — check size against the equivalent host path instead.
+    largest = max(rels, key=lambda rel: os.path.getsize(os.path.join(script_dir, rel)) if os.path.exists(os.path.join(script_dir, rel)) else -1)
+    print(largest)
 PYEOF
 )
 VIDEOS=()

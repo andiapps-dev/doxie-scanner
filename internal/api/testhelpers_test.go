@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -38,6 +39,44 @@ func testPNGBytes(t *testing.T, w, h int, c color.NRGBA) []byte {
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, testImage(w, h, c)); err != nil {
 		t.Fatalf("encode test PNG: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// noisyPNGBytes builds a smooth gradient with per-pixel jitter (seeded
+// math/rand, so this stays deterministic) rather than a flat color — a
+// flat color's JPEG encoding barely changes size across quality levels
+// (there's no AC coefficient variation for quality to act on), which
+// would make a quality-comparison test meaningless or flaky. See the
+// equivalent helper (and its longer explanation) in
+// internal/pdfexport/pdfexport_test.go.
+func noisyPNGBytes(t *testing.T, w, h int) []byte {
+	t.Helper()
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	rng := rand.New(rand.NewSource(42))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			jitter := rng.Intn(31) - 15
+			clamp := func(v int) uint8 {
+				if v < 0 {
+					return 0
+				}
+				if v > 255 {
+					return 255
+				}
+				return uint8(v)
+			}
+			img.Set(x, y, color.NRGBA{
+				R: clamp(255*x/w + jitter),
+				G: clamp(255*y/h + jitter),
+				B: clamp(200 + jitter),
+				A: 255,
+			})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode noisy test PNG: %v", err)
 	}
 	return buf.Bytes()
 }
