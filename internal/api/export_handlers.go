@@ -47,7 +47,11 @@ func (s *Server) handleExportPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var buf bytes.Buffer
-		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+		// Quality 100 here is deliberately higher than the JPEG quality
+		// PDFs embed at (see pdfexport.jpegQuality): this standalone
+		// download is the "I want the best quality" choice, since PDF
+		// export is the "I want it smaller" choice.
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 100}); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
 			return
 		}
@@ -61,7 +65,11 @@ func (s *Server) handleExportPage(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
 			return
 		}
-		pdfBytes, err := pdfexport.SinglePagePDF(img)
+		// No format choice here (unlike handleCombine): this is a single
+		// page, and anyone who wants lossless already has the plain PNG
+		// download right next to this one in the same export menu, so
+		// this PDF option can just default to the smaller JPEG embed.
+		pdfBytes, err := pdfexport.SinglePagePDF(img, pdfexport.FormatJPEG)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
 			return
@@ -81,8 +89,9 @@ type combinePageRef struct {
 }
 
 type combineRequest struct {
-	Pages []combinePageRef `json:"pages"`
-	Title string           `json:"title,omitempty"`
+	Pages       []combinePageRef `json:"pages"`
+	Title       string           `json:"title,omitempty"`
+	ImageFormat string           `json:"imageFormat,omitempty"`
 }
 
 // handleCombine assembles pages from any number of past jobs, in the
@@ -95,6 +104,20 @@ func (s *Server) handleCombine(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Pages) == 0 {
 		writeError(w, http.StatusBadRequest, "bad_request", "no pages specified")
+		return
+	}
+
+	// Default to JPEG (smaller, no visible difference for typical text
+	// scans) — PNG is the deliberate opt-in for photo/art content where
+	// JPEG artifacts would show.
+	format := pdfexport.FormatJPEG
+	switch req.ImageFormat {
+	case "", "jpeg":
+		format = pdfexport.FormatJPEG
+	case "png":
+		format = pdfexport.FormatPNG
+	default:
+		writeError(w, http.StatusBadRequest, "bad_request", "imageFormat must be \"png\" or \"jpeg\"")
 		return
 	}
 
@@ -124,7 +147,7 @@ func (s *Server) handleCombine(w http.ResponseWriter, r *http.Request) {
 		images = append(images, img)
 	}
 
-	pdfBytes, err := pdfexport.CombinePagesPDF(images)
+	pdfBytes, err := pdfexport.CombinePagesPDF(images, format)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return

@@ -451,12 +451,12 @@
 
   // ---- Export / combine ----
 
-  async function downloadCombinedPDF(pages, title) {
+  async function downloadCombinedPDF(pages, title, imageFormat) {
     await withBusy(async () => {
       const res = await api('/api/export/combine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pages, title }),
+        body: JSON.stringify({ pages, title, imageFormat }),
       });
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -476,7 +476,7 @@
       .filter(Boolean)
       .map((p) => ({ jobId: p.jobId, page: p.page }));
     const title = el('combine-title').value.trim() || 'combined';
-    await downloadCombinedPDF(pages, title);
+    await downloadCombinedPDF(pages, title, el('combine-format').value);
   }
 
   async function exportWholeScan() {
@@ -486,7 +486,7 @@
       return;
     }
     const pages = job.pages.map((p) => ({ jobId: job.id, page: p.index }));
-    await downloadCombinedPDF(pages, job.name);
+    await downloadCombinedPDF(pages, job.name, el('job-export-format').value);
   }
 
   // ---- Start scan + progress polling ----
