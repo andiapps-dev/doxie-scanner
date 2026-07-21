@@ -7,6 +7,8 @@ like `v1.2.0`, and each one gets its own section below.
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-07-21
+
 ### Added
 
 - "Extract Text" on any page's viewer runs OCR and shows the recognized
