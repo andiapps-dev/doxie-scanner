@@ -360,7 +360,63 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(modal).toBeHidden();
   });
 
-  test('4 - combine pages from multiple scans into one pdf', async ({ page }) => {
+  test('4 - extract text from a page', async ({ page }) => {
+    // Clicking "Copy text" for real triggers navigator.clipboard's
+    // permission flow with nothing to grant it (no real user, no
+    // headless UI to interact with). Chromium quickly rejects the write,
+    // but the pending permission arbitration silently swallows the
+    // *next* real click afterward — verified by bisection (removing the
+    // Copy click alone fixed the following Back click), and this isn't
+    // reliably fixable via context.grantPermissions() either: it worked
+    // over plain "localhost" but reproduced again over a real LAN IP
+    // (matching this container's actual hostname), so it's origin/
+    // environment-sensitive in a way not worth chasing further. Stubbing
+    // navigator.clipboard sidesteps Chromium's real permission machinery
+    // entirely — and shows the actual "Copied!" success path, which is
+    // arguably the more representative demo than the no-permission
+    // fallback anyway.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: async () => {} },
+        configurable: true,
+      });
+    });
+
+    await page.goto('/');
+    await installCursor(page);
+    const jobList = page.locator('#job-list');
+    const grid = page.locator('#page-grid');
+    const modal = page.locator('#page-modal');
+
+    await clickAt(page, jobList.getByText('Cover Letter Draft'));
+    await expect(grid.locator('.page-thumbnail')).toHaveCount(1);
+    await beat(page);
+
+    await clickAt(page, grid.locator('.page-thumbnail').first().locator('.page-thumb'));
+    await expect(modal).toBeVisible();
+    await beat(page);
+
+    await clickAt(page, page.locator('#pm-extract-text'));
+    await expect(page.locator('#page-modal-ocr-wrap')).toBeVisible();
+    // Deskew (unpaper) + OCR (tesseract) genuinely takes several real
+    // seconds against a real page — wait for the busy overlay to clear
+    // rather than a fixed pause.
+    await expect(page.locator('#busy-overlay')).toBeHidden({ timeout: 20_000 });
+    await expect(page.locator('#pm-ocr-text')).not.toHaveValue('');
+    await beat(page, 1800);
+
+    await clickAt(page, page.locator('#pm-ocr-copy'));
+    await beat(page, 1200);
+
+    await clickAt(page, page.locator('#pm-ocr-back'));
+    await expect(page.locator('#page-modal-image-wrap')).toBeVisible();
+    await beat(page, 800);
+
+    await clickAt(page, page.locator('#page-modal .btn-close'));
+    await expect(modal).toBeHidden();
+  });
+
+  test('5 - combine pages from multiple scans into one pdf', async ({ page }) => {
     await page.goto('/');
     await installCursor(page);
     const jobList = page.locator('#job-list');
@@ -440,7 +496,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(combineBar).toBeHidden();
   });
 
-  test('5 - export a scan as pdf, rename it, and delete a page', async ({ page }) => {
+  test('6 - export a scan as pdf, rename it, and delete a page', async ({ page }) => {
     await page.goto('/');
     await installCursor(page);
     const jobList = page.locator('#job-list');

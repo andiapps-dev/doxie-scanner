@@ -31,7 +31,7 @@ func TestNewServer_ServesStaticFS(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := scanjobs.NewManager(drv, store)
 	fsys := fstest.MapFS{"index.html": {Data: []byte("hello")}}
-	srv := NewServer(drv, mgr, store, fsys, "test")
+	srv := NewServer(drv, mgr, store, fsys, "test", "eng")
 
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))

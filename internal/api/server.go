@@ -18,6 +18,7 @@ type Server struct {
 	jobs    *scanjobs.Manager
 	store   *storage.Store
 	version string
+	ocrLang string
 	mux     *http.ServeMux
 }
 
@@ -26,9 +27,10 @@ type Server struct {
 // tests that only care about the JSON API. version is whatever build-time
 // identifier main.go was compiled with (a git tag in release builds,
 // "dev" otherwise) — surfaced read-only via GET /api/version so a
-// running container can be identified for support purposes.
-func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, staticFS fs.FS, version string) *Server {
-	s := &Server{drv: drv, jobs: jobs, store: store, version: version}
+// running container can be identified for support purposes. ocrLang is
+// the tesseract language code "Extract Text" uses (see Config.OCRLang).
+func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, staticFS fs.FS, version, ocrLang string) *Server {
+	s := &Server{drv: drv, jobs: jobs, store: store, version: version, ocrLang: ocrLang}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/version", s.handleVersion)
@@ -46,6 +48,7 @@ func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, 
 	mux.HandleFunc("POST /api/scans/{id}/pages/{n}/rotate", s.handleRotatePage)
 	mux.HandleFunc("POST /api/scans/{id}/pages/{n}/crop", s.handleCropPage)
 	mux.HandleFunc("GET /api/scans/{id}/pages/{n}/export", s.handleExportPage)
+	mux.HandleFunc("GET /api/scans/{id}/pages/{n}/ocr", s.handleExtractText)
 
 	mux.HandleFunc("POST /api/export/combine", s.handleCombine)
 

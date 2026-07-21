@@ -51,8 +51,11 @@ that independent reimplementation, licensed under MIT (see LICENSE).
 - Automatic blank-back detection for duplex scans: a blank back simply
   doesn't become a page, rather than producing an empty one to delete later
 - Click any page to open it in a full-size viewer with rotate (left/right
-  90° — click repeatedly for 180°/270°), crop, export, and delete actions
-  all in one place
+  90° — click repeatedly for 180°/270°), crop, export, delete, and OCR
+  actions all in one place
+- **Extract Text** runs OCR on a page and shows the result in a
+  copy-pasteable box — automatically corrects a crooked scan first, since
+  even a few degrees of skew measurably hurts recognition accuracy
 - Drag and drop to reorder pages within a scan
 - Export a single page as PNG, JPEG, or PDF; export a whole scan as one
   combined PDF with one click; or hand-pick pages from **any number of
@@ -186,6 +189,7 @@ All endpoints are JSON except where noted. No authentication.
 | `POST /api/scans/{id}/pages/{n}/rotate` | `{"degrees": 90\|180\|270}` — clockwise, in place. |
 | `POST /api/scans/{id}/pages/{n}/crop` | `{"x","y","width","height"}` — in place. |
 | `GET /api/scans/{id}/pages/{n}/export?format=png\|jpg\|pdf` | Single-page export, downloaded as an attachment. |
+| `GET /api/scans/{id}/pages/{n}/ocr` | `{"text": "..."}` — runs OCR (with automatic deskew) and returns the recognized text. Not cached; regenerated on every call. |
 | `POST /api/export/combine` | `{"pages":[{"jobId","page"}...], "title"}` — combines pages **from any scans** into one PDF, in the given order. |
 
 Errors look like:
@@ -220,6 +224,7 @@ the reference implementation. Select which driver runs via the
 | `DOXIE_DATA_DIR` | `/data` | Where scan jobs are stored. Must be writable; see above. |
 | `DOXIE_LISTEN_ADDR` | `:8080` | HTTP listen address. |
 | `DOXIE_DRIVER` | `doxie-dx400` | Which registered driver to use. |
+| `DOXIE_OCR_LANG` | `eng` | Tesseract language code "Extract Text" uses. Anything besides `eng` needs the matching `tesseract-ocr-data-<lang>` package added to a custom build — only English data ships in the published image. |
 
 ## Local development
 
