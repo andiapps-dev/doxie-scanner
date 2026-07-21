@@ -1,0 +1,94 @@
+{
+  "common": {
+    "formatJpeg": "JPEG (smaller)",
+    "formatPng": "PNG (lossless)",
+    "formatJpegHigh": "JPEG (high quality)",
+    "formatPdf": "PDF"
+  },
+  "nav": {
+    "title": "Doxie Scanner",
+    "checking": "checking…"
+  },
+  "status": {
+    "connected": "Scanner connected",
+    "notConnected": "Scanner not connected",
+    "unknown": "Status unknown",
+    "running": "running",
+    "completed": "completed",
+    "failed": "failed"
+  },
+  "scan": {
+    "newHeading": "New scan",
+    "duplexLabel": "Duplex (both sides)",
+    "startButton": "Start scan",
+    "waitingTitle": "Waiting for scanner connection…",
+    "inProgressTitle": "A scan is already in progress",
+    "progressText": "Scanning… {count} page(s) so far"
+  },
+  "jobs": {
+    "heading": "Scans",
+    "empty": "No scans yet.",
+    "selectPrompt": "Select a scan to view its pages.",
+    "pageCountUnit": "page(s)"
+  },
+  "jobDetail": {
+    "rename": "Rename",
+    "exportFormatTitle": "Image format for the exported PDF",
+    "exportPdf": "Export scan as PDF",
+    "deleteScan": "Delete scan",
+    "help": "Duplex scans number each side as its own page. Drag a thumbnail to reorder it. Click a thumbnail to view, rotate, crop, export, or delete it.",
+    "noPages": "No pages yet."
+  },
+  "combine": {
+    "selected": "{count} page(s) selected — drag thumbnails to reorder",
+    "titlePlaceholder": "Document title",
+    "formatTitle": "Image format for the combined PDF",
+    "button": "Combine into PDF",
+    "clear": "Clear selection",
+    "thumbAlt": "Page {n} of combined document",
+    "removeTitle": "Remove from selection"
+  },
+  "page": {
+    "label": "Page {n}"
+  },
+  "modal": {
+    "imageAlt": "Page",
+    "rotateLeftTitle": "Rotate left 90°",
+    "rotateLeft": "⟲ Rotate Left",
+    "rotateRightTitle": "Rotate right 90°",
+    "rotateRight": "⟳ Rotate Right",
+    "crop": "Crop",
+    "extractText": "Extract Text",
+    "selectForCombine": "Select for combine",
+    "export": "Export",
+    "deletePage": "Delete page",
+    "cropCancel": "Cancel",
+    "cropSave": "Save crop",
+    "ocrBack": "Back",
+    "ocrCopy": "Copy text",
+    "ocrCopied": "Copied!",
+    "ocrSelected": "Selected — press Ctrl+C",
+    "ocrExtracting": "Extracting text…",
+    "ocrNoText": "No text recognized on this page."
+  },
+  "confirm": {
+    "deletePage": "Delete this page?",
+    "deleteScan": "Delete this scan and all of its pages?"
+  },
+  "alert": {
+    "noPages": "This scan has no pages yet."
+  },
+  "busy": {
+    "working": "Working…"
+  },
+  "errors": {
+    "bad_request": "Invalid request.",
+    "not_found": "Not found.",
+    "device_not_found": "Scanner not found — check it's powered on and connected.",
+    "claim_interface_failed": "Found the scanner but couldn't access it — check permissions.",
+    "scsi_error": "A scanner communication error occurred.",
+    "ocr_unavailable": "Text extraction isn't available on this server.",
+    "internal_error": "Something went wrong.",
+    "generic": "Something went wrong."
+  }
+}

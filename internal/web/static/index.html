@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Doxie Scanner</title>
+  <title data-i18n="nav.title">Doxie Scanner</title>
   <link rel="stylesheet" href="vendor/bootstrap.min.css">
   <link rel="stylesheet" href="vendor/cropper.min.css">
   <link rel="stylesheet" href="style.css">
@@ -11,8 +11,12 @@
 <body>
   <nav class="navbar navbar-expand navbar-dark bg-primary mb-4">
     <div class="container">
-      <span class="navbar-brand mb-0 h1">Doxie Scanner</span>
-      <span id="scanner-badge" class="badge rounded-pill text-bg-secondary">checking…</span>
+      <span class="navbar-brand mb-0 h1" data-i18n="nav.title">Doxie Scanner</span>
+      <span id="scanner-badge" class="badge rounded-pill text-bg-secondary" data-i18n="nav.checking">checking…</span>
+      <select id="lang-switcher" class="form-select form-select-sm ms-2" style="width:auto">
+        <option value="en">English</option>
+        <option value="es">Español</option>
+      </select>
     </div>
   </nav>
 
@@ -21,16 +25,14 @@
       <div class="col-12">
         <div class="card">
           <div class="card-body">
-            <h2 class="h5 card-title">New scan</h2>
+            <h2 class="h5 card-title" data-i18n="scan.newHeading">New scan</h2>
             <div class="d-flex align-items-center gap-3 flex-wrap">
               <div class="form-check form-switch mb-0">
                 <input class="form-check-input" type="checkbox" id="duplex-toggle" checked>
-                <label class="form-check-label" for="duplex-toggle">Duplex (both sides)</label>
+                <label class="form-check-label" for="duplex-toggle" data-i18n="scan.duplexLabel">Duplex (both sides)</label>
               </div>
-              <button id="start-scan-btn" type="button" class="btn btn-primary" disabled title="Waiting for scanner connection…">Start scan</button>
-              <div id="scan-progress" class="text-muted small d-none">
-                Scanning… <span id="scan-progress-count">0</span> page(s) so far
-              </div>
+              <button id="start-scan-btn" type="button" class="btn btn-primary" disabled data-i18n="scan.startButton" data-i18n-title="scan.waitingTitle" title="Waiting for scanner connection…">Start scan</button>
+              <div id="scan-progress" class="text-muted small d-none"></div>
             </div>
           </div>
         </div>
@@ -39,30 +41,30 @@
       <div class="col-12 col-lg-4">
         <div class="card">
           <div class="card-header d-flex justify-content-between align-items-center">
-            <span>Scans</span>
+            <span data-i18n="jobs.heading">Scans</span>
           </div>
           <div id="job-list" class="list-group list-group-flush"></div>
         </div>
       </div>
 
       <div class="col-12 col-lg-8">
-        <div id="job-detail-empty" class="text-muted">Select a scan to view its pages.</div>
+        <div id="job-detail-empty" class="text-muted" data-i18n="jobs.selectPrompt">Select a scan to view its pages.</div>
         <div id="job-detail" class="d-none">
           <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
               <input id="job-name-input" type="text" class="form-control form-control-sm" style="width:auto">
-              <button id="job-rename-btn" class="btn btn-sm btn-outline-secondary">Rename</button>
+              <button id="job-rename-btn" class="btn btn-sm btn-outline-secondary" data-i18n="jobDetail.rename">Rename</button>
             </div>
             <div class="d-flex gap-2 align-items-center">
-              <select id="job-export-format" class="form-select form-select-sm" style="width:auto" title="Image format for the exported PDF">
-                <option value="jpeg" selected>JPEG (smaller)</option>
-                <option value="png">PNG (lossless)</option>
+              <select id="job-export-format" class="form-select form-select-sm" style="width:auto" data-i18n-title="jobDetail.exportFormatTitle" title="Image format for the exported PDF">
+                <option value="jpeg" selected data-i18n="common.formatJpeg">JPEG (smaller)</option>
+                <option value="png" data-i18n="common.formatPng">PNG (lossless)</option>
               </select>
-              <button id="job-export-pdf-btn" class="btn btn-sm btn-outline-success">Export scan as PDF</button>
-              <button id="job-delete-btn" class="btn btn-sm btn-outline-danger">Delete scan</button>
+              <button id="job-export-pdf-btn" class="btn btn-sm btn-outline-success" data-i18n="jobDetail.exportPdf">Export scan as PDF</button>
+              <button id="job-delete-btn" class="btn btn-sm btn-outline-danger" data-i18n="jobDetail.deleteScan">Delete scan</button>
             </div>
           </div>
-          <p class="text-muted small mb-2">Duplex scans number each side as its own page. Drag a thumbnail to reorder it. Click a thumbnail to view, rotate, crop, export, or delete it.</p>
+          <p class="text-muted small mb-2" data-i18n="jobDetail.help">Duplex scans number each side as its own page. Drag a thumbnail to reorder it. Click a thumbnail to view, rotate, crop, export, or delete it.</p>
           <div id="page-grid"></div>
         </div>
       </div>
@@ -73,14 +75,14 @@
     <div class="container py-2">
       <div id="combine-thumbs" class="d-flex align-items-start gap-2 mb-2"></div>
       <div class="d-flex align-items-center gap-3 flex-wrap">
-        <span><strong id="combine-count">0</strong> page(s) selected — drag thumbnails to reorder</span>
-        <input id="combine-title" type="text" class="form-control form-control-sm" style="width:auto" placeholder="Document title">
-        <select id="combine-format" class="form-select form-select-sm" style="width:auto" title="Image format for the combined PDF">
-          <option value="jpeg" selected>JPEG (smaller)</option>
-          <option value="png">PNG (lossless)</option>
+        <span id="combine-count-text"></span>
+        <input id="combine-title" type="text" class="form-control form-control-sm" style="width:auto" data-i18n-placeholder="combine.titlePlaceholder" placeholder="Document title">
+        <select id="combine-format" class="form-select form-select-sm" style="width:auto" data-i18n-title="combine.formatTitle" title="Image format for the combined PDF">
+          <option value="jpeg" selected data-i18n="common.formatJpeg">JPEG (smaller)</option>
+          <option value="png" data-i18n="common.formatPng">PNG (lossless)</option>
         </select>
-        <button id="combine-btn" class="btn btn-success btn-sm">Combine into PDF</button>
-        <button id="combine-clear-btn" class="btn btn-outline-secondary btn-sm">Clear selection</button>
+        <button id="combine-btn" class="btn btn-success btn-sm" data-i18n="combine.button">Combine into PDF</button>
+        <button id="combine-clear-btn" class="btn btn-outline-secondary btn-sm" data-i18n="combine.clear">Clear selection</button>
       </div>
     </div>
   </div>
@@ -94,7 +96,7 @@
         </div>
         <div class="modal-body text-center">
           <div class="page-modal-image-wrap" id="page-modal-image-wrap">
-            <img id="page-modal-image" src="" alt="Page">
+            <img id="page-modal-image" src="" data-i18n-alt="modal.imageAlt" alt="Page">
           </div>
           <div class="page-modal-ocr-wrap d-none" id="page-modal-ocr-wrap">
             <textarea id="pm-ocr-text" class="form-control" readonly></textarea>
@@ -103,42 +105,43 @@
         </div>
         <div class="modal-footer flex-wrap justify-content-center gap-2" id="page-modal-view-actions">
           <div class="btn-group">
-            <button type="button" class="btn btn-outline-secondary" id="pm-rotate-left" title="Rotate left 90°">⟲ Rotate Left</button>
-            <button type="button" class="btn btn-outline-secondary" id="pm-rotate-right" title="Rotate right 90°">⟳ Rotate Right</button>
+            <button type="button" class="btn btn-outline-secondary" id="pm-rotate-left" data-i18n="modal.rotateLeft" data-i18n-title="modal.rotateLeftTitle" title="Rotate left 90°">⟲ Rotate Left</button>
+            <button type="button" class="btn btn-outline-secondary" id="pm-rotate-right" data-i18n="modal.rotateRight" data-i18n-title="modal.rotateRightTitle" title="Rotate right 90°">⟳ Rotate Right</button>
           </div>
-          <button type="button" class="btn btn-outline-secondary" id="pm-crop-start">Crop</button>
-          <button type="button" class="btn btn-outline-secondary" id="pm-extract-text">Extract Text</button>
+          <button type="button" class="btn btn-outline-secondary" id="pm-crop-start" data-i18n="modal.crop">Crop</button>
+          <button type="button" class="btn btn-outline-secondary" id="pm-extract-text" data-i18n="modal.extractText">Extract Text</button>
           <input type="checkbox" class="btn-check" id="pm-combine-check" autocomplete="off">
-          <label class="btn btn-outline-secondary" for="pm-combine-check">Select for combine</label>
+          <label class="btn btn-outline-secondary" for="pm-combine-check" data-i18n="modal.selectForCombine">Select for combine</label>
           <div class="dropdown">
-            <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">Export</button>
+            <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" data-i18n="modal.export">Export</button>
             <ul class="dropdown-menu">
-              <li><a class="dropdown-item pm-export-link" href="#" data-format="png">PNG (lossless)</a></li>
-              <li><a class="dropdown-item pm-export-link" href="#" data-format="jpg" data-quality="100">JPEG (high quality)</a></li>
-              <li><a class="dropdown-item pm-export-link" href="#" data-format="jpg" data-quality="90">JPEG (smaller)</a></li>
-              <li><a class="dropdown-item pm-export-link" href="#" data-format="pdf">PDF</a></li>
+              <li><a class="dropdown-item pm-export-link" href="#" data-format="png" data-i18n="common.formatPng">PNG (lossless)</a></li>
+              <li><a class="dropdown-item pm-export-link" href="#" data-format="jpg" data-quality="100" data-i18n="common.formatJpegHigh">JPEG (high quality)</a></li>
+              <li><a class="dropdown-item pm-export-link" href="#" data-format="jpg" data-quality="90" data-i18n="common.formatJpeg">JPEG (smaller)</a></li>
+              <li><a class="dropdown-item pm-export-link" href="#" data-format="pdf" data-i18n="common.formatPdf">PDF</a></li>
             </ul>
           </div>
-          <button type="button" class="btn btn-outline-danger" id="pm-delete">Delete page</button>
+          <button type="button" class="btn btn-outline-danger" id="pm-delete" data-i18n="modal.deletePage">Delete page</button>
         </div>
         <div class="modal-footer d-none justify-content-center gap-2" id="page-modal-crop-actions">
-          <button type="button" class="btn btn-secondary" id="pm-crop-cancel">Cancel</button>
-          <button type="button" class="btn btn-primary" id="pm-crop-save">Save crop</button>
+          <button type="button" class="btn btn-secondary" id="pm-crop-cancel" data-i18n="modal.cropCancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="pm-crop-save" data-i18n="modal.cropSave">Save crop</button>
         </div>
         <div class="modal-footer d-none justify-content-center gap-2" id="page-modal-ocr-actions">
-          <button type="button" class="btn btn-secondary" id="pm-ocr-back">Back</button>
-          <button type="button" class="btn btn-primary" id="pm-ocr-copy">Copy text</button>
+          <button type="button" class="btn btn-secondary" id="pm-ocr-back" data-i18n="modal.ocrBack">Back</button>
+          <button type="button" class="btn btn-primary" id="pm-ocr-copy" data-i18n="modal.ocrCopy">Copy text</button>
         </div>
       </div>
     </div>
   </div>
 
   <div id="busy-overlay" class="d-none">
-    <div class="spinner-border text-light" role="status"><span class="visually-hidden">Working…</span></div>
+    <div class="spinner-border text-light" role="status"><span class="visually-hidden" data-i18n="busy.working">Working…</span></div>
   </div>
 
   <script src="vendor/bootstrap.bundle.min.js"></script>
   <script src="vendor/cropper.min.js"></script>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

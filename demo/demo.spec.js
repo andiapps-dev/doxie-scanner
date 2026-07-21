@@ -175,7 +175,37 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await beat(page, 1200);
   });
 
-  test('2 - start and run a scan', async ({ page }) => {
+  test('2 - switch the UI language', async ({ page }) => {
+    await page.goto('/');
+    await installCursor(page);
+
+    const switcher = page.locator('#lang-switcher');
+    await pointAt(page, switcher);
+    await beat(page, 800);
+
+    await expect(page.locator('#start-scan-btn')).toHaveText('Start scan');
+
+    // The switcher reloads the page rather than patching the DOM in
+    // place, so every dynamic render (job list, help text, etc.) picks
+    // up the new language too, not just the static markup.
+    await Promise.all([page.waitForEvent('load'), switcher.selectOption('es')]);
+    await installCursor(page);
+    await expect(page.locator('#start-scan-btn')).toHaveText('Iniciar escaneo');
+    await beat(page, 1200);
+
+    // Confirm a dynamically-rendered string (not just static markup)
+    // picks up the new language too.
+    await clickAt(page, page.locator('#job-list').getByText('Cover Letter Draft'));
+    await expect(page.locator('#job-detail p.text-muted')).toContainText('escaneos dúplex');
+    await beat(page, 1200);
+
+    await Promise.all([page.waitForEvent('load'), switcher.selectOption('en')]);
+    await installCursor(page);
+    await expect(page.locator('#start-scan-btn')).toHaveText('Start scan');
+    await beat(page, 800);
+  });
+
+  test('3 - start and run a scan', async ({ page }) => {
     // This container has no physical scanner attached, so the badge
     // would otherwise stay red for the whole recording and "Start scan"
     // would stay disabled forever — there'd be nothing to show. Instead,
@@ -292,7 +322,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await beat(page, 1200);
   });
 
-  test('3 - browse, rotate, and crop a page', async ({ page }) => {
+  test('4 - browse, rotate, and crop a page', async ({ page }) => {
     await page.goto('/');
     await installCursor(page);
     const jobList = page.locator('#job-list');
@@ -360,7 +390,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(modal).toBeHidden();
   });
 
-  test('4 - extract text from a page', async ({ page }) => {
+  test('5 - extract text from a page', async ({ page }) => {
     // Clicking "Copy text" for real triggers navigator.clipboard's
     // permission flow with nothing to grant it (no real user, no
     // headless UI to interact with). Chromium quickly rejects the write,
@@ -416,7 +446,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(modal).toBeHidden();
   });
 
-  test('5 - combine pages from multiple scans into one pdf', async ({ page }) => {
+  test('6 - combine pages from multiple scans into one pdf', async ({ page }) => {
     await page.goto('/');
     await installCursor(page);
     const jobList = page.locator('#job-list');
@@ -439,7 +469,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await clickAt(page, grid.locator('.page-thumbnail .combine-check'));
 
     await expect(combineBar).toBeVisible();
-    await expect(page.locator('#combine-count')).toHaveText('2');
+    await expect(page.locator('#combine-count-text')).toContainText('2');
     await expect(thumbs).toHaveCount(2);
     await beat(page, 1000);
 
@@ -496,7 +526,7 @@ test.describe.serial('doxie-scanner UI walkthrough', () => {
     await expect(combineBar).toBeHidden();
   });
 
-  test('6 - export a scan as pdf, rename it, and delete a page', async ({ page }) => {
+  test('7 - export a scan as pdf, rename it, and delete a page', async ({ page }) => {
     await page.goto('/');
     await installCursor(page);
     const jobList = page.locator('#job-list');

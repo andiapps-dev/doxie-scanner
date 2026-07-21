@@ -1,0 +1,94 @@
+{
+  "common": {
+    "formatJpeg": "JPEG (más pequeño)",
+    "formatPng": "PNG (sin pérdida)",
+    "formatJpegHigh": "JPEG (alta calidad)",
+    "formatPdf": "PDF"
+  },
+  "nav": {
+    "title": "Doxie Scanner",
+    "checking": "comprobando…"
+  },
+  "status": {
+    "connected": "Escáner conectado",
+    "notConnected": "Escáner no conectado",
+    "unknown": "Estado desconocido",
+    "running": "en curso",
+    "completed": "completado",
+    "failed": "fallido"
+  },
+  "scan": {
+    "newHeading": "Nuevo escaneo",
+    "duplexLabel": "Dúplex (ambas caras)",
+    "startButton": "Iniciar escaneo",
+    "waitingTitle": "Esperando conexión del escáner…",
+    "inProgressTitle": "Ya hay un escaneo en curso",
+    "progressText": "Escaneando… {count} página(s) hasta ahora"
+  },
+  "jobs": {
+    "heading": "Escaneos",
+    "empty": "Aún no hay escaneos.",
+    "selectPrompt": "Selecciona un escaneo para ver sus páginas.",
+    "pageCountUnit": "página(s)"
+  },
+  "jobDetail": {
+    "rename": "Renombrar",
+    "exportFormatTitle": "Formato de imagen para el PDF exportado",
+    "exportPdf": "Exportar escaneo como PDF",
+    "deleteScan": "Eliminar escaneo",
+    "help": "Los escaneos dúplex numeran cada cara como su propia página. Arrastra una miniatura para reordenarla. Haz clic en una miniatura para verla, rotarla, recortarla, exportarla o eliminarla.",
+    "noPages": "Aún no hay páginas."
+  },
+  "combine": {
+    "selected": "{count} página(s) seleccionada(s) — arrastra las miniaturas para reordenar",
+    "titlePlaceholder": "Título del documento",
+    "formatTitle": "Formato de imagen para el PDF combinado",
+    "button": "Combinar en PDF",
+    "clear": "Limpiar selección",
+    "thumbAlt": "Página {n} del documento combinado",
+    "removeTitle": "Quitar de la selección"
+  },
+  "page": {
+    "label": "Página {n}"
+  },
+  "modal": {
+    "imageAlt": "Página",
+    "rotateLeftTitle": "Rotar 90° a la izquierda",
+    "rotateLeft": "⟲ Rotar izquierda",
+    "rotateRightTitle": "Rotar 90° a la derecha",
+    "rotateRight": "⟳ Rotar derecha",
+    "crop": "Recortar",
+    "extractText": "Extraer texto",
+    "selectForCombine": "Seleccionar para combinar",
+    "export": "Exportar",
+    "deletePage": "Eliminar página",
+    "cropCancel": "Cancelar",
+    "cropSave": "Guardar recorte",
+    "ocrBack": "Volver",
+    "ocrCopy": "Copiar texto",
+    "ocrCopied": "¡Copiado!",
+    "ocrSelected": "Seleccionado — pulsa Ctrl+C",
+    "ocrExtracting": "Extrayendo texto…",
+    "ocrNoText": "No se reconoció texto en esta página."
+  },
+  "confirm": {
+    "deletePage": "¿Eliminar esta página?",
+    "deleteScan": "¿Eliminar este escaneo y todas sus páginas?"
+  },
+  "alert": {
+    "noPages": "Este escaneo aún no tiene páginas."
+  },
+  "busy": {
+    "working": "Procesando…"
+  },
+  "errors": {
+    "bad_request": "Solicitud no válida.",
+    "not_found": "No encontrado.",
+    "device_not_found": "No se encontró el escáner — comprueba que esté encendido y conectado.",
+    "claim_interface_failed": "Se encontró el escáner pero no se pudo acceder a él — comprueba los permisos.",
+    "scsi_error": "Se produjo un error de comunicación con el escáner.",
+    "ocr_unavailable": "La extracción de texto no está disponible en este servidor.",
+    "internal_error": "Ocurrió un error.",
+    "generic": "Ocurrió un error."
+  }
+}
