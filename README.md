@@ -63,6 +63,9 @@ that independent reimplementation, licensed under MIT (see LICENSE).
 - Auto-named scans ("Scan 2026-07-14 15:30"), renamable afterward, with
   the scan list showing creation date/time and page count so similarly
   named scans stay easy to tell apart
+- The UI is available in English and Spanish, auto-detected from the
+  browser with a manual override (navbar dropdown, remembered for next
+  time)
 - No authentication, no database — just a REST API and a folder of files
 
 ## Requirements

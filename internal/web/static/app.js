@@ -49,15 +49,28 @@
     }
   }
 
+  // translateErrorCode maps the backend's stable error `code` to a
+  // translated, user-facing message; the raw `message` (often untranslatable
+  // SCSI/USB/subprocess prose) is only ever logged to the console, never
+  // shown in the UI.
+  function translateErrorCode(code) {
+    if (!code) return I18N.t('errors.generic');
+    const key = `errors.${code}`;
+    const value = I18N.t(key);
+    return value === key ? I18N.t('errors.generic') : value;
+  }
+
   async function api(path, opts) {
     const res = await fetch(path, opts);
     if (!res.ok && res.headers.get('content-type')?.includes('application/json')) {
       const body = await res.json().catch(() => null);
-      const msg = body?.error?.message || `request failed (${res.status})`;
-      throw new Error(msg);
+      const code = body?.error?.code;
+      if (body?.error?.message) console.warn(`API error (${code || 'unknown'}): ${body.error.message}`);
+      throw new Error(translateErrorCode(code));
     }
     if (!res.ok) {
-      throw new Error(`request failed (${res.status})`);
+      console.warn(`API error: request failed (${res.status})`);
+      throw new Error(I18N.t('errors.generic'));
     }
     return res;
   }
@@ -80,9 +93,9 @@
     const btn = el('start-scan-btn');
     btn.disabled = !state.scannerConnected || state.scanning;
     if (state.scanning) {
-      btn.title = 'A scan is already in progress';
+      btn.title = I18N.t('scan.inProgressTitle');
     } else if (!state.scannerConnected) {
-      btn.title = 'Waiting for scanner connection…';
+      btn.title = I18N.t('scan.waitingTitle');
     } else {
       btn.title = '';
     }
@@ -95,17 +108,18 @@
       const data = await res.json();
       state.scannerConnected = data.connected;
       if (data.connected) {
-        badge.textContent = 'Scanner connected';
+        badge.textContent = I18N.t('status.connected');
         badge.className = 'badge rounded-pill text-bg-success';
         badge.title = '';
       } else {
-        badge.textContent = 'Scanner not connected';
+        badge.textContent = I18N.t('status.notConnected');
         badge.className = 'badge rounded-pill text-bg-danger';
-        badge.title = data.error?.message || '';
+        if (data.error?.message) console.warn(`Scanner status error (${data.error.code || 'unknown'}): ${data.error.message}`);
+        badge.title = data.error ? translateErrorCode(data.error.code) : '';
       }
     } catch (e) {
       state.scannerConnected = false;
-      badge.textContent = 'Status unknown';
+      badge.textContent = I18N.t('status.unknown');
       badge.className = 'badge rounded-pill text-bg-secondary';
     }
     updateStartButtonState();
@@ -123,7 +137,7 @@
     const list = el('job-list');
     list.innerHTML = '';
     if (state.jobs.length === 0) {
-      list.innerHTML = '<div class="list-group-item text-muted">No scans yet.</div>';
+      list.innerHTML = `<div class="list-group-item text-muted">${I18N.t('jobs.empty')}</div>`;
       return;
     }
     for (const job of state.jobs) {
@@ -136,10 +150,11 @@
         item.setAttribute('aria-current', 'true');
       }
       const when = new Date(job.createdAt).toLocaleString();
+      const statusText = I18N.t(`status.${job.status}`);
       item.innerHTML = `
         <span>
           <div>${escapeHtml(job.name)}</div>
-          <small class="job-meta ${isActive ? '' : 'text-muted'}">${escapeHtml(when)} · ${job.pageCount} page(s) · ${escapeHtml(job.status)}</small>
+          <small class="job-meta ${isActive ? '' : 'text-muted'}">${escapeHtml(when)} · ${job.pageCount} ${I18N.t('jobs.pageCountUnit')} · ${escapeHtml(statusText)}</small>
         </span>
       `;
       item.addEventListener('click', () => selectJob(job.id));
@@ -171,7 +186,7 @@
     grid.innerHTML = '';
     const pages = job.pages || [];
     if (pages.length === 0) {
-      grid.innerHTML = '<p class="text-muted">No pages yet.</p>';
+      grid.innerHTML = `<p class="text-muted">${I18N.t('jobDetail.noPages')}</p>`;
       return;
     }
     for (const page of pages) {
@@ -192,12 +207,12 @@
     const key = combineKey(jobId, page.index);
     const selected = state.combineSelection.has(key);
     const src = pageImageUrl(jobId, page.index);
-    const label = `Page ${page.index}`;
+    const label = I18N.t('page.label', { n: page.index });
 
     thumbnail.innerHTML = `
       <img class="page-thumb" src="${src}" alt="${label}">
       <div class="page-thumbnail-overlay">
-        <input type="checkbox" class="form-check-input combine-check" ${selected ? 'checked' : ''} title="Select for combine">
+        <input type="checkbox" class="form-check-input combine-check" ${selected ? 'checked' : ''} title="${I18N.t('modal.selectForCombine')}">
       </div>
       <div class="page-thumbnail-footer">${label}</div>
     `;
@@ -288,7 +303,7 @@
   function renderCombineBar() {
     const bar = el('combine-bar');
     const count = state.combineOrder.length;
-    el('combine-count').textContent = count;
+    el('combine-count-text').textContent = I18N.t('combine.selected', { count });
     bar.classList.toggle('d-none', count === 0);
 
     const thumbs = el('combine-thumbs');
@@ -316,8 +331,8 @@
 
     const src = pageImageUrl(entry.jobId, entry.page);
     thumbnail.innerHTML = `
-      <img src="${src}" alt="Page ${position} of combined document">
-      <button type="button" class="combine-thumb-remove" title="Remove from selection">&times;</button>
+      <img src="${src}" alt="${I18N.t('combine.thumbAlt', { n: position })}">
+      <button type="button" class="combine-thumb-remove" title="${I18N.t('combine.removeTitle')}">&times;</button>
       <div class="combine-thumb-label">${position}</div>
     `;
 
@@ -375,7 +390,7 @@
   function loadViewerImage() {
     const { jobId, page } = state.viewer;
     el('page-modal-image').src = pageImageUrl(jobId, page);
-    el('page-modal-title').textContent = `Page ${page}`;
+    el('page-modal-title').textContent = I18N.t('page.label', { n: page });
     el('pm-combine-check').checked = state.combineSelection.has(combineKey(jobId, page));
   }
 
@@ -446,14 +461,14 @@
     el('page-modal-ocr-wrap').classList.remove('d-none');
     el('page-modal-ocr-actions').classList.remove('d-none');
     el('pm-ocr-text').value = '';
-    el('pm-ocr-hint').textContent = 'Extracting text…';
+    el('pm-ocr-hint').textContent = I18N.t('modal.ocrExtracting');
 
     await withBusy(async () => {
       try {
         const res = await api(`/api/scans/${jobId}/pages/${page}/ocr`);
         const { text } = await res.json();
         el('pm-ocr-text').value = text || '';
-        el('pm-ocr-hint').textContent = text ? '' : 'No text recognized on this page.';
+        el('pm-ocr-hint').textContent = text ? '' : I18N.t('modal.ocrNoText');
       } catch (e) {
         el('pm-ocr-hint').textContent = e.message;
       }
@@ -480,14 +495,14 @@
     if (navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(textarea.value);
-        btn.textContent = 'Copied!';
+        btn.textContent = I18N.t('modal.ocrCopied');
       } catch (e) {
         textarea.select();
-        btn.textContent = 'Selected — press Ctrl+C';
+        btn.textContent = I18N.t('modal.ocrSelected');
       }
     } else {
       textarea.select();
-      btn.textContent = 'Selected — press Ctrl+C';
+      btn.textContent = I18N.t('modal.ocrSelected');
     }
     setTimeout(() => { btn.textContent = originalLabel; }, 1500);
   }
@@ -495,7 +510,7 @@
   async function deleteCurrentPage() {
     if (!state.viewer) return;
     const { jobId, page } = state.viewer;
-    if (!confirm('Delete this page?')) return;
+    if (!confirm(I18N.t('confirm.deletePage'))) return;
     await withBusy(async () => {
       await api(`/api/scans/${jobId}/pages/${page}`, { method: 'DELETE' });
       const key = combineKey(jobId, page);
@@ -541,7 +556,7 @@
   async function exportWholeScan() {
     const job = state.selectedJob;
     if (!job || !job.pages || job.pages.length === 0) {
-      alert('This scan has no pages yet.');
+      alert(I18N.t('alert.noPages'));
       return;
     }
     const pages = job.pages.map((p) => ({ jobId: job.id, page: p.index }));
@@ -569,13 +584,18 @@
     }
   }
 
+  function updateScanProgressText(count) {
+    el('scan-progress').textContent = I18N.t('scan.progressText', { count });
+  }
+
   function watchScanProgress(jobId) {
     el('scan-progress').classList.remove('d-none');
+    updateScanProgressText(0);
     if (state.scanPollTimer) clearInterval(state.scanPollTimer);
     state.scanPollTimer = setInterval(async () => {
       const res = await api(`/api/scans/${jobId}`);
       const job = await res.json();
-      el('scan-progress-count').textContent = job.pagesScanned ?? job.pageCount ?? 0;
+      updateScanProgressText(job.pagesScanned ?? job.pageCount ?? 0);
       if (job.status !== 'running') {
         clearInterval(state.scanPollTimer);
         state.scanPollTimer = null;
@@ -603,7 +623,7 @@
 
   async function deleteJob() {
     if (!state.selectedJobId) return;
-    if (!confirm('Delete this scan and all of its pages?')) return;
+    if (!confirm(I18N.t('confirm.deleteScan'))) return;
     await withBusy(async () => {
       await api(`/api/scans/${state.selectedJobId}`, { method: 'DELETE' });
       state.selectedJobId = null;
@@ -682,7 +702,12 @@
     commitReorder();
   });
 
-  pollScannerStatus();
-  setInterval(pollScannerStatus, 3000);
-  loadJobs();
+  // Both of these render translated text on first call, so wait for the
+  // locale dictionary to be ready rather than racing it.
+  (async () => {
+    await window.I18N.ready;
+    pollScannerStatus();
+    setInterval(pollScannerStatus, 3000);
+    loadJobs();
+  })();
 })();

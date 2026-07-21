@@ -7,6 +7,16 @@ like `v1.2.0`, and each one gets its own section below.
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-07-21
+
+### Added
+
+- The web UI now supports English and Spanish. Language is auto-detected
+  from the browser on first visit and can be overridden with a dropdown
+  in the navbar; the choice is remembered for future visits. Adding
+  another language is just a new `locales/<code>.json` file — no code
+  changes needed.
+
 ## [1.0.6] - 2026-07-21
 
 ### Added
