@@ -433,6 +433,65 @@
     });
   }
 
+  // ---- OCR ----
+
+  // Swaps the image view for a plain-text result view (same show-one-
+  // hide-the-other pattern startCrop/endCropUI already use for the crop
+  // UI), runs the extraction, and fills the textarea with the result.
+  async function startOcr() {
+    if (!state.viewer) return;
+    const { jobId, page } = state.viewer;
+    el('page-modal-view-actions').classList.add('d-none');
+    el('page-modal-image-wrap').classList.add('d-none');
+    el('page-modal-ocr-wrap').classList.remove('d-none');
+    el('page-modal-ocr-actions').classList.remove('d-none');
+    el('pm-ocr-text').value = '';
+    el('pm-ocr-hint').textContent = 'Extracting text…';
+
+    await withBusy(async () => {
+      try {
+        const res = await api(`/api/scans/${jobId}/pages/${page}/ocr`);
+        const { text } = await res.json();
+        el('pm-ocr-text').value = text || '';
+        el('pm-ocr-hint').textContent = text ? '' : 'No text recognized on this page.';
+      } catch (e) {
+        el('pm-ocr-hint').textContent = e.message;
+      }
+    });
+  }
+
+  function endOcrUI() {
+    el('page-modal-view-actions').classList.remove('d-none');
+    el('page-modal-image-wrap').classList.remove('d-none');
+    el('page-modal-ocr-wrap').classList.add('d-none');
+    el('page-modal-ocr-actions').classList.add('d-none');
+  }
+
+  // Tries the Clipboard API first, but that's only available in a
+  // secure context (HTTPS or localhost) — this app is typically reached
+  // over plain HTTP on a home LAN, where navigator.clipboard is simply
+  // undefined. textarea.select() has no such restriction and always
+  // works, so it's the fallback rather than an error message.
+  async function copyOcrText() {
+    const textarea = el('pm-ocr-text');
+    const btn = el('pm-ocr-copy');
+    const originalLabel = btn.textContent;
+
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        btn.textContent = 'Copied!';
+      } catch (e) {
+        textarea.select();
+        btn.textContent = 'Selected — press Ctrl+C';
+      }
+    } else {
+      textarea.select();
+      btn.textContent = 'Selected — press Ctrl+C';
+    }
+    setTimeout(() => { btn.textContent = originalLabel; }, 1500);
+  }
+
   async function deleteCurrentPage() {
     if (!state.viewer) return;
     const { jobId, page } = state.viewer;
@@ -579,6 +638,9 @@
   el('pm-crop-start').addEventListener('click', startCrop);
   el('pm-crop-cancel').addEventListener('click', cancelCrop);
   el('pm-crop-save').addEventListener('click', saveCrop);
+  el('pm-extract-text').addEventListener('click', startOcr);
+  el('pm-ocr-back').addEventListener('click', endOcrUI);
+  el('pm-ocr-copy').addEventListener('click', copyOcrText);
   el('pm-delete').addEventListener('click', deleteCurrentPage);
   el('pm-combine-check').addEventListener('change', (e) => {
     if (!state.viewer) return;
@@ -599,6 +661,7 @@
   });
   el('page-modal').addEventListener('hidden.bs.modal', () => {
     endCropUI();
+    endOcrUI();
     state.viewer = null;
   });
 

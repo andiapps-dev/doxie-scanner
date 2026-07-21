@@ -8,4 +8,4 @@ require (
 	github.com/google/gousb v1.1.3
 )
 
-require golang.org/x/image v0.12.0 // indirect
+require golang.org/x/image v0.12.0

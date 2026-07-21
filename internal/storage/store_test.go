@@ -250,6 +250,26 @@ func TestStore_PageFileRoundTrip(t *testing.T) {
 	}
 }
 
+func TestStore_PageFilePath(t *testing.T) {
+	s := New(t.TempDir())
+	if err := s.CreateJob(JobMeta{ID: "job1"}); err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("fake png bytes")
+	if err := s.SavePageFile("job1", "page-001.png", data); err != nil {
+		t.Fatalf("SavePageFile: %v", err)
+	}
+
+	path := s.PageFilePath("job1", "page-001.png")
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("expected PageFilePath to return a real, readable path: %v", err)
+	}
+	if string(got) != string(data) {
+		t.Errorf("got %q, want %q", got, data)
+	}
+}
+
 func TestStore_SavePageFile_Error(t *testing.T) {
 	s := New(t.TempDir())
 	// Job directory was never created, so pages/ doesn't exist.

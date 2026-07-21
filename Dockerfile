@@ -23,7 +23,12 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X 
 # deliberate deviation from a pure-Go, scratch-based image.
 FROM --platform=linux/amd64 alpine:3.20
 
-RUN apk add --no-cache libusb ca-certificates && \
+# tesseract-ocr + unpaper back "Extract Text": internal/ocr shells out
+# to both (deskew via unpaper, OCR via tesseract) rather than binding
+# against either C library directly, so no builder-stage changes are
+# needed for this feature — only these runtime packages. Add
+# tesseract-ocr-data-<lang> for any language beyond the default "eng".
+RUN apk add --no-cache libusb ca-certificates tesseract-ocr tesseract-ocr-data-eng unpaper && \
     adduser -D -u 1000 doxie
 
 COPY --from=builder /out/doxie-scanner /usr/local/bin/doxie-scanner

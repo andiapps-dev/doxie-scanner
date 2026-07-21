@@ -49,7 +49,7 @@ func main() {
 	}
 
 	mgr := scanjobs.NewManager(drv, store)
-	srv := api.NewServer(drv, mgr, store, web.FS(), version)
+	srv := api.NewServer(drv, mgr, store, web.FS(), version, cfg.OCRLang)
 
 	log.Printf("doxie-scanner %s listening on %s (driver=%s)", version, cfg.ListenAddr, cfg.DriverName)
 	log.Fatal(http.ListenAndServe(cfg.ListenAddr, srv))

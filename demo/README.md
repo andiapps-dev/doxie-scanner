@@ -21,9 +21,10 @@ is a rerun instead of a manual capture.
    `mcr.microsoft.com/playwright` Docker image (the host has neither
    Node nor browsers installed, and doesn't need them for this) — it
    clicks through the scan list, page viewer, rotate/crop (a real crop,
-   dragging Cropper.js's own resize handle), drag-to-reorder pages, the
-   combine-into-PDF bar (multi-job selection, drag-to-reorder, remove,
-   view-only preview), rename, and delete, with real `expect()`
+   dragging Cropper.js's own resize handle), Extract Text (a real
+   unpaper+tesseract OCR pass, including deskew), drag-to-reorder pages,
+   the combine-into-PDF bar (multi-job selection, drag-to-reorder,
+   remove, view-only preview), rename, and delete, with real `expect()`
    assertions at each step. Every run records video, not just failures.
    A visible cursor dot is injected so the recording shows where each
    click/drag actually lands.

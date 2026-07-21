@@ -133,6 +133,14 @@ func (s *Store) LoadPageFile(jobID, filename string) ([]byte, error) {
 	return data, nil
 }
 
+// PageFilePath returns the absolute on-disk path of one page image file
+// for a job, for callers that need to hand a real path to an external
+// tool (e.g. internal/ocr, which shells out to unpaper/tesseract)
+// instead of reading the file's bytes into memory themselves.
+func (s *Store) PageFilePath(jobID, filename string) string {
+	return filepath.Join(s.pagesDir(jobID), filename)
+}
+
 // RenamePageFile renames a page image file within a job (e.g. when pages
 // are renumbered after a deletion). A cheap metadata-only operation
 // since it never touches the file's contents.

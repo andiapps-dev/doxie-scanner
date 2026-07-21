@@ -145,6 +145,17 @@
   display: block;
 }
 
+.page-modal-ocr-wrap {
+  text-align: left;
+}
+
+#pm-ocr-text {
+  width: 100%;
+  height: 60vh;
+  font-family: var(--bs-font-monospace, monospace);
+  white-space: pre-wrap;
+}
+
 /* Cropper.js reads the image's current rendered box size when it
    initializes and builds its own interactive container to match — so as
    long as the wrapper's max-height constraint is still in effect at that

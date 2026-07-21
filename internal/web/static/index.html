@@ -93,8 +93,12 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body text-center">
-          <div class="page-modal-image-wrap">
+          <div class="page-modal-image-wrap" id="page-modal-image-wrap">
             <img id="page-modal-image" src="" alt="Page">
+          </div>
+          <div class="page-modal-ocr-wrap d-none" id="page-modal-ocr-wrap">
+            <textarea id="pm-ocr-text" class="form-control" readonly></textarea>
+            <p class="text-muted small mb-0 mt-1" id="pm-ocr-hint"></p>
           </div>
         </div>
         <div class="modal-footer flex-wrap justify-content-center gap-2" id="page-modal-view-actions">
@@ -103,6 +107,7 @@
             <button type="button" class="btn btn-outline-secondary" id="pm-rotate-right" title="Rotate right 90°">⟳ Rotate Right</button>
           </div>
           <button type="button" class="btn btn-outline-secondary" id="pm-crop-start">Crop</button>
+          <button type="button" class="btn btn-outline-secondary" id="pm-extract-text">Extract Text</button>
           <input type="checkbox" class="btn-check" id="pm-combine-check" autocomplete="off">
           <label class="btn btn-outline-secondary" for="pm-combine-check">Select for combine</label>
           <div class="dropdown">
@@ -119,6 +124,10 @@
         <div class="modal-footer d-none justify-content-center gap-2" id="page-modal-crop-actions">
           <button type="button" class="btn btn-secondary" id="pm-crop-cancel">Cancel</button>
           <button type="button" class="btn btn-primary" id="pm-crop-save">Save crop</button>
+        </div>
+        <div class="modal-footer d-none justify-content-center gap-2" id="page-modal-ocr-actions">
+          <button type="button" class="btn btn-secondary" id="pm-ocr-back">Back</button>
+          <button type="button" class="btn btn-primary" id="pm-ocr-copy">Copy text</button>
         </div>
       </div>
     </div>

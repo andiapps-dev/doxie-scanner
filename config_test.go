@@ -17,6 +17,9 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.DriverName != defaultDriverName {
 		t.Errorf("DriverName = %q, want %q", cfg.DriverName, defaultDriverName)
 	}
+	if cfg.OCRLang != defaultOCRLang {
+		t.Errorf("OCRLang = %q, want %q", cfg.OCRLang, defaultOCRLang)
+	}
 }
 
 func TestLoadConfig_Overrides(t *testing.T) {
@@ -24,6 +27,7 @@ func TestLoadConfig_Overrides(t *testing.T) {
 		"DOXIE_DATA_DIR":    "/mnt/scans",
 		"DOXIE_LISTEN_ADDR": ":9090",
 		"DOXIE_DRIVER":      "some-other-driver",
+		"DOXIE_OCR_LANG":    "deu",
 	}))
 	if cfg.DataDir != "/mnt/scans" {
 		t.Errorf("DataDir = %q", cfg.DataDir)
@@ -33,5 +37,8 @@ func TestLoadConfig_Overrides(t *testing.T) {
 	}
 	if cfg.DriverName != "some-other-driver" {
 		t.Errorf("DriverName = %q", cfg.DriverName)
+	}
+	if cfg.OCRLang != "deu" {
+		t.Errorf("OCRLang = %q", cfg.OCRLang)
 	}
 }

@@ -7,6 +7,17 @@ like `v1.2.0`, and each one gets its own section below.
 
 ## [Unreleased]
 
+### Added
+
+- "Extract Text" on any page's viewer runs OCR and shows the recognized
+  text in a copy-pasteable box. Automatically corrects for a crooked
+  scan first (via `unpaper`'s deskew pass) before handing it to
+  `tesseract` — real scans are rarely perfectly straight, and a few
+  degrees of skew measurably hurts OCR accuracy. Defaults to English
+  (`DOXIE_OCR_LANG` to change it, plus the matching
+  `tesseract-ocr-data-<lang>` package in a custom build). Text isn't
+  cached — like Export, it's regenerated on demand each time.
+
 ## [1.0.5] - 2026-07-17
 
 ### Added

@@ -43,6 +43,7 @@ CAPTIONS=(
     "Live scanner connection status"
     "Start and run a scan"
     "Browse, rotate, and crop a page"
+    "Extract text from a page"
     "Combine pages from multiple scans into one PDF"
     "Export a scan as PDF, rename it, and delete a page"
 )
