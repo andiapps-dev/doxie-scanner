@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Go module dependencies (imaging, fpdf, gousb, x/image, ...)
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Actions used by ci.yml / docker-publish.yml
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Base image + apt packages pulled in by the Dockerfile
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
