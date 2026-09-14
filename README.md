@@ -70,7 +70,7 @@ that independent reimplementation, licensed under MIT (see LICENSE).
 
 ## Requirements
 
-- Docker (or a Go 1.24+ toolchain with a C compiler and libusb-1.0 dev
+- Docker (or a Go 1.26+ toolchain with a C compiler and libusb-1.0 dev
   headers, if running outside Docker)
 - A Doxie Pro DX400 scanner connected over USB
 - **A persistent volume mounted at `/data`.** This is not optional: scan

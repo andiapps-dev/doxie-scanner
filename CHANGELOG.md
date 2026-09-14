@@ -7,6 +7,22 @@ like `v1.2.0`, and each one gets its own section below.
 
 ## [Unreleased]
 
+### Changed
+
+- Docker build now uses Go 1.27 and Alpine 3.24 (previously 1.24/3.20),
+  and `golang.org/x/image` is updated from 0.12.0 to 0.46.0 — bumping
+  `go.mod`'s minimum Go version to 1.26. CI now actually builds the
+  Dockerfile on every push/PR (it previously only ran `go vet`/`build`/
+  `test`, so a base-image bump could pass CI without the image itself
+  ever being built).
+
+### Fixed
+
+- `TestNewJobID_Uniqueness` could rarely fail on entirely correct code:
+  it drew 50 real random samples from a 65536-value space and asserted
+  no collision, a ~2% chance event by the birthday paradox. Now
+  deterministic.
+
 ## [1.0.7] - 2026-07-21
 
 ### Added
