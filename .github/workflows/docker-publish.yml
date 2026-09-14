@@ -49,7 +49,7 @@ jobs:
       # linux/amd64 only, by design — see the Dockerfile's own comment:
       # cgo + libusb makes arm64-via-QEMU cross-builds slow and fragile
       # for a single-scanner-model tool with no arm64 hardware target.
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
