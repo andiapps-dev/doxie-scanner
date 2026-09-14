@@ -1,6 +1,6 @@
 module github.com/andiapps-dev/doxie-scanner
 
-go 1.24.0
+go 1.26.0
 
 require (
 	github.com/disintegration/imaging v1.6.2
@@ -8,4 +8,4 @@ require (
 	github.com/google/gousb v1.1.3
 )
 
-require golang.org/x/image v0.12.0
+require golang.org/x/image v0.46.0

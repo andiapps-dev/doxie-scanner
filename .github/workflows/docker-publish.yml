@@ -37,7 +37,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/metadata-action@v5
+      - uses: docker/metadata-action@v6
         id: meta
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -49,7 +49,7 @@ jobs:
       # linux/amd64 only, by design — see the Dockerfile's own comment:
       # cgo + libusb makes arm64-via-QEMU cross-builds slow and fragile
       # for a single-scanner-model tool with no arm64 hardware target.
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
@@ -90,7 +90,7 @@ jobs:
             exit 1
           fi
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           body_path: release-notes.md
           generate_release_notes: true
