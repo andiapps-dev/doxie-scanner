@@ -4,7 +4,7 @@
 # cross-building arm64 via QEMU emulation is slow and fragile for a
 # single-scanner-model utility with no arm64 hardware target today.
 
-FROM --platform=linux/amd64 golang:1.24-alpine AS builder
+FROM --platform=linux/amd64 golang:1.27-alpine AS builder
 
 RUN apk add --no-cache build-base pkgconf libusb-dev
 
