@@ -21,7 +21,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X 
 # NOT scratch: gousb/cgo dynamically links libusb-1.0 at runtime, so the
 # final image needs libc plus the libusb shared library — the one
 # deliberate deviation from a pure-Go, scratch-based image.
-FROM --platform=linux/amd64 alpine:3.20
+FROM --platform=linux/amd64 alpine:3.24
 
 # tesseract-ocr + unpaper back "Extract Text": internal/ocr shells out
 # to both (deskew via unpaper, OCR via tesseract) rather than binding
