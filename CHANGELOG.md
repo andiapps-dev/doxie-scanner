@@ -9,6 +9,13 @@ like `v1.2.0`, and each one gets its own section below.
 
 ### Added
 
+- **README demo and screenshots re-recorded.** The old recording predated most
+  of what the app does now. The new demo is shorter and shows the main story
+  only: scan with auto-crop and auto-rotate, pages back trimmed and upright,
+  drag to reorder, export a PDF or separate images, send to Paperless-ngx. It
+  runs the app's own auto-crop and auto-rotate over seeded raw scans and a
+  stand-in Paperless server, so only the scanner itself is faked. Desktop and
+  phone screenshots come from the same script (`demo/record-demo.sh`).
 - **One place to act on a selection.** Ticking pages used to show Send to
   Paperless and Export twice, in the scan header and in the bar at the bottom,
   with nothing saying why. The bottom bar is the place for a selection (it can

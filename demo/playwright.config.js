@@ -6,7 +6,7 @@ import { defineConfig, devices } from '@playwright/test';
 // demo.gif for the README.
 export default defineConfig({
   testDir: '.',
-  testMatch: 'demo.spec.js',
+  testMatch: 'demo.spec.js', // screenshots.spec.js has its own config
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -31,7 +31,9 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      // The device preset sets a 1280x720 viewport; override it after the
+      // spread so the page fills the whole recorded frame (no grey band).
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 860 } },
     },
   ],
 });

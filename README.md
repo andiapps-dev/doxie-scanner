@@ -21,6 +21,12 @@ the scanner through the USB device nodes under `/dev/bus/usb`.
 
 ![Doxie Scanner demo](demo/output/doxie-scanner-demo.gif)
 
+<p align="center">
+  <img src="docs/screenshots/selection-desktop.png" width="58%" alt="Desktop: a scan's pages, two ticked, with the export menu open">
+  <img src="docs/screenshots/pages-phone.png" width="19%" alt="Phone: a scan's pages, trimmed and upright">
+  <img src="docs/screenshots/selection-phone.png" width="19%" alt="Phone: two pages ticked, with the export menu open">
+</p>
+
 ## How this was built
 
 The scanner driver speaks **the protocol Doxie's own driver uses**: a

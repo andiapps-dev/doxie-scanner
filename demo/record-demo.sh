@@ -5,6 +5,8 @@ set -euo pipefail
 # documents involved — see generate-seed-data.py), runs the Playwright
 # walkthrough in demo.spec.js against it, and converts the resulting
 # video into a palette-optimized GIF at output/doxie-scanner-demo.gif.
+# It then takes the README's still screenshots (screenshots.spec.js) into
+# ../docs/screenshots/, desktop and phone width, from the same seeded app.
 #
 # demo.spec.js is both the integration test and the demo recording: a
 # failing assertion fails this script exactly like it would fail CI.
@@ -18,18 +20,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-PLAYWRIGHT_IMAGE="mcr.microsoft.com/playwright:v1.61.0-jammy"
+PLAYWRIGHT_IMAGE="mcr.microsoft.com/playwright:v1.64.1-noble"
 APP_IMAGE="doxie-scanner:demo"
 NETWORK="doxie-demo-net"
 APP_CONTAINER="doxie-demo-app"
+PAPERLESS_CONTAINER="doxie-demo-paperless"
 
 WORK_DIR="$(mktemp -d)"
 DATA_DIR="$WORK_DIR/data"
 OUTPUT_DIR="$SCRIPT_DIR/output"
+SCREENSHOT_DIR="$REPO_ROOT/docs/screenshots"
 
-GIF_FPS=8
-GIF_WIDTH=900
-GIF_MAX_COLORS=160
+GIF_FPS=7
+GIF_WIDTH=860
+GIF_MAX_COLORS=128
 
 # Must match the viewport/video size in playwright.config.js, and stay in
 # the same order as the numbered tests in demo.spec.js — each caption
@@ -37,22 +41,24 @@ GIF_MAX_COLORS=160
 CLIP_WIDTH=1280
 CLIP_HEIGHT=860
 CLIP_FPS=10
-TITLE_DUR=1.6
+TITLE_DUR=1.3
 FONT="$(fc-match -f '%{file}\n' 'DejaVu Sans:bold' 2>/dev/null || echo /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf)"
 CAPTIONS=(
-    "Live scanner connection status"
-    "Switch the UI language"
-    "Start and run a scan"
-    "Browse, rotate, and crop a page"
-    "Extract text from a page"
-    "Combine pages from multiple scans into one PDF"
-    "Export a scan as PDF, rename it, and delete a page"
+    "Scan with auto-crop and auto-rotate"
+    "Pages come back trimmed and upright"
+    "Drag pages into order"
+    "Export a PDF or separate images"
+    "Send straight to Paperless-ngx"
 )
 
 cleanup() {
     echo "Cleaning up..."
-    docker rm -f "$APP_CONTAINER" >/dev/null 2>&1 || true
+    docker rm -f "$APP_CONTAINER" "$PAPERLESS_CONTAINER" >/dev/null 2>&1 || true
     docker network rm "$NETWORK" >/dev/null 2>&1 || true
+    # The app writes thumbnails and processed pages into the data dir as its
+    # own (non-host) user, so the host can't always delete them; do it from
+    # inside a container instead.
+    docker run --rm --user root -v "$WORK_DIR:/w" --entrypoint rm "$APP_IMAGE" -rf /w/data >/dev/null 2>&1 || true
     rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT
@@ -69,10 +75,18 @@ echo "Setting up an isolated network..."
 docker network rm "$NETWORK" >/dev/null 2>&1 || true
 docker network create "$NETWORK" >/dev/null
 
-echo "Starting doxie-scanner (no scanner device attached — deliberately, so the demo shows the real 'not connected' state)..."
+echo "Starting a stand-in Paperless-ngx (fake-paperless.py) for the Send to Paperless clip..."
+docker rm -f "$PAPERLESS_CONTAINER" >/dev/null 2>&1 || true
+docker run -d --name "$PAPERLESS_CONTAINER" --network "$NETWORK" \
+    -v "$SCRIPT_DIR:/work:ro" \
+    "$PLAYWRIGHT_IMAGE" python3 /work/fake-paperless.py 8000 >/dev/null
+
+echo "Starting doxie-scanner (no scanner device attached; the scan clip fakes only the scanner's side)..."
 docker rm -f "$APP_CONTAINER" >/dev/null 2>&1 || true
 docker run -d --name "$APP_CONTAINER" --network "$NETWORK" \
     -v "$DATA_DIR:/data" \
+    -e DOXIE_PAPERLESS_URL="http://$PAPERLESS_CONTAINER:8000" \
+    -e DOXIE_PAPERLESS_TOKEN=demo-token \
     "$APP_IMAGE" >/dev/null
 
 echo "Waiting for doxie-scanner to become healthy..."
@@ -89,7 +103,33 @@ if [[ -z "$ready" ]]; then
     exit 1
 fi
 
+# Do what a real scan ends with, to the raw pages seeded as "demo-receipts":
+# the app's own auto-crop and auto-rotate, through its API. What the screenshots
+# and the demo then show has really been trimmed, straightened and turned.
+echo "Running the app's auto-crop and auto-rotate over the raw demo pages..."
+for step in auto-crop auto-rotate; do
+    docker exec "$APP_CONTAINER" wget -q -O /dev/null --post-data='' \
+        "http://localhost:8080/api/scans/demo-receipts/$step"
+done
+
 rm -rf "$SCRIPT_DIR/test-results" "$SCRIPT_DIR/results.json"
+mkdir -p "$SCREENSHOT_DIR"
+
+# Screenshots first, while the demo scan is still freshly processed (the demo
+# below reorders pages and sends one to Paperless).
+echo "Taking the README screenshots (desktop and phone)..."
+docker run --rm \
+    --network "$NETWORK" \
+    --user "$(id -u):$(id -g)" \
+    -e HOME=/tmp \
+    -e DOXIE_BASE_URL="http://$APP_CONTAINER:8080" \
+    -e SCREENSHOT_DIR=/screenshots \
+    -v "$SCRIPT_DIR:/work" \
+    -v "$SCREENSHOT_DIR:/screenshots" \
+    -w /work \
+    "$PLAYWRIGHT_IMAGE" \
+    bash -c "npm install --no-audit --no-fund --no-package-lock && npx playwright test -c playwright.screenshots.config.js"
+
 
 echo "Running the Playwright walkthrough (this both tests and records)..."
 docker run --rm \
