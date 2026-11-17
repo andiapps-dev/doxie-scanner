@@ -15,6 +15,9 @@ like `v1.2.0`, and each one gets its own section below.
   that scan when there are any (its button reads "Export 2 selected pages"),
   and both export menus start with a line stating exactly what they will
   export, such as "Exports the 2 selected pages" or "Exports all 4 pages of this scan".
+  The scan header's *Send to Paperless…* follows the same rule: with pages ticked
+  it sends just those ("Send 2 selected pages to Paperless…"), otherwise the
+  pages not yet in Paperless as before.
 - **Export pages as separate images.** Choosing JPEG or PNG for several selected
   pages always produced a PDF: that menu only set the image format *inside* the
   PDF. The selection bar's *Export* button now has a menu with two clear groups,

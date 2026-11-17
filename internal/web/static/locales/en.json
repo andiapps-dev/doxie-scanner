@@ -79,7 +79,10 @@
     "autoRotated_other": "Turned {count} pages upright.",
     "autoCropped_one": "Trimmed {count} page to the sheet.",
     "autoCropped_other": "Trimmed {count} pages to the sheet.",
-    "helpTouch": "Press and hold a page, then drag to reorder. Tap a page to open it."
+    "helpTouch": "Press and hold a page, then drag to reorder. Tap a page to open it.",
+    "sendSelected_one": "Send {count} selected page to Paperless…",
+    "sendSelected_other": "Send {count} selected pages to Paperless…",
+    "sendSelectedTitle": "Send just the pages you ticked in this scan"
   },
   "combine": {
     "titlePlaceholder": "Document title",
