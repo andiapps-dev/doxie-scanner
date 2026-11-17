@@ -88,6 +88,13 @@ like `v1.2.0`, and each one gets its own section below.
   Pages have a visible tick-box with *Select all*. "Select for combine" is
   now "Select page", since the same selection feeds Send. Paperless tags are
   toggle chips instead of a multi-select list box.
+- **Reordering pages works with touch.** The page grid and the selection bar
+  were reordered with the browser's own drag and drop, which does not work on
+  phones and tablets at all. Both now use pointer events, so a mouse, a finger
+  and a pen share one implementation: a mouse drags at once, a finger presses
+  and holds first (so a quick swipe still scrolls), a copy of the page follows
+  the pointer, the list scrolls by itself near its edge, and Escape cancels. The
+  page viewer's *⋯* menu also has *Move earlier* and *Move later* for exact moves.
 - **The whole app fits in one window.** The page no longer grows and scrolls:
   the header and the new-scan card stay put, the scan list scrolls in its own
   panel, and the open scan's pages scroll in theirs, with the scan's header and

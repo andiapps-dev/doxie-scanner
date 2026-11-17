@@ -15,7 +15,6 @@
     bulkSelected: new Set(),
     combineSelection: new Map(),
     combineOrder: [],
-    combineDragKey: null,
     scanPollTimer: null,
     cropper: null,
     // Bumped on every reload so image URLs change and the browser can't
@@ -23,7 +22,6 @@
     renderNonce: 0,
     // {jobId, page} for whichever page is open in the modal.
     viewer: null,
-    dragSrcIndex: null,
     busyDepth: 0,
     scannerConnected: false,
     scanning: false,
@@ -531,7 +529,6 @@
   function renderPageThumbnail(jobId, page) {
     const thumbnail = document.createElement('div');
     thumbnail.className = 'page-thumbnail';
-    thumbnail.draggable = true;
     thumbnail.dataset.page = page.index;
 
     const key = combineKey(jobId, page.index);
@@ -544,7 +541,7 @@
     if (sentPageSet(state.selectedJob).has(page.index)) badges.push(`✓ ${I18N.t('page.sentBadge')}`);
 
     thumbnail.innerHTML = `
-      <img class="page-thumb" src="${src}" alt="${label}" loading="lazy">
+      <img class="page-thumb" src="${src}" alt="${label}" loading="lazy" draggable="false">
       <div class="page-thumbnail-overlay">
         <input type="checkbox" class="form-check-input combine-check" ${selected ? 'checked' : ''} title="${I18N.t('modal.selectForCombine')}">
       </div>
@@ -556,45 +553,180 @@
       toggleCombine(jobId, page.index);
     });
 
-    thumbnail.addEventListener('dragstart', (e) => {
-      state.dragSrcIndex = page.index;
-      thumbnail.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    thumbnail.addEventListener('dragend', () => {
-      thumbnail.classList.remove('dragging');
-      state.dragSrcIndex = null;
-      // Re-render from the authoritative state: if a drop already
-      // committed a reorder, selectJob() has (or will have) updated
-      // state.selectedJob and this reflects that; if the drag was
-      // cancelled with no drop, this simply restores the original order.
-      renderJobDetail();
-    });
-    thumbnail.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      if (state.dragSrcIndex == null || state.dragSrcIndex === page.index) return;
-      // Move the actual dragged thumbnail in the DOM, live, to exactly
-      // where it would land — what you see while dragging is what you
-      // get, no separate indicator to interpret.
-      const dragged = el('page-grid').querySelector('.page-thumbnail.dragging');
-      if (!dragged) return;
-      const rect = thumbnail.getBoundingClientRect();
-      const before = e.clientX - rect.left < rect.width / 2;
-      thumbnail.parentNode.insertBefore(dragged, before ? thumbnail : thumbnail.nextSibling);
-    });
-    thumbnail.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (state.dragSrcIndex == null) return;
-      commitReorder();
-    });
-
     return thumbnail;
   }
 
+  // ---- Drag to reorder: mouse, finger and pen ----
+
+  // makeSortable lets the items in container be dragged into a new order.
+  // It uses Pointer Events, so one implementation covers a mouse, a finger
+  // and a pen. (The browser's own HTML5 drag and drop, which this replaces,
+  // does not work on phones and tablets at all.)
+  //
+  // A mouse starts a drag after moving a few pixels. A finger must press and
+  // hold first (HOLD_MS), because a quick swipe has to keep scrolling the
+  // list: a touch that moves before the hold is up is left to scroll. While
+  // dragging, the item itself is moved in the DOM to where it would land, a
+  // copy follows the pointer, and the container scrolls when the pointer
+  // nears its edge. Releasing commits (onCommit) if the order changed;
+  // Escape or a cancelled pointer puts everything back.
+  const HOLD_MS = 350;
+  const START_PX = 6;
+  const SLOP_PX = 10;
+  const EDGE_PX = 56;
+
+  function makeSortable(container, itemSel, { onCommit }) {
+    let pending = null; // the pointer is down on an item, not dragging yet
+    let drag = null; // a drag is under way
+    let suppressClick = false;
+    let lastPointerType = 'mouse';
+    const NOT_DRAG_START = 'input, button, a, label, select, textarea';
+
+    const items = () => Array.from(container.querySelectorAll(itemSel));
+
+    function clearPending() {
+      if (pending && pending.timer) clearTimeout(pending.timer);
+      pending = null;
+    }
+
+    function begin() {
+      if (!pending) return;
+      const { item, id, x, y, type } = pending;
+      clearPending();
+      const box = item.getBoundingClientRect();
+      const ghost = item.cloneNode(true);
+      ghost.classList.add('drag-ghost');
+      ghost.style.width = `${box.width}px`;
+      document.body.appendChild(ghost);
+      drag = { item, ghost, id, x, y, offX: x - box.left, offY: y - box.top, startOrder: items(), raf: 0 };
+      item.classList.add('dragging');
+      container.classList.add('sorting');
+      try { container.setPointerCapture(id); } catch (e) { /* the pointer may already be gone */ }
+      if (type !== 'mouse' && navigator.vibrate) navigator.vibrate(12);
+      place();
+      drag.raf = requestAnimationFrame(autoScroll);
+    }
+
+    // Follow the pointer with the copy, and move the item to where it would
+    // land: before or after the item under the pointer, or to the end when
+    // the pointer is in the empty space after the last one.
+    function place() {
+      const { ghost, item, x, y, offX, offY } = drag;
+      ghost.style.left = `${x - offX}px`;
+      ghost.style.top = `${y - offY}px`;
+      const under = document.elementFromPoint(x, y);
+      const target = under && under.closest(itemSel);
+      if (target && target !== item && container.contains(target)) {
+        const r = target.getBoundingClientRect();
+        const before = x < r.left + r.width / 2;
+        const ref = before ? target : target.nextSibling;
+        if (ref !== item && !(before ? target.previousSibling === item : target.nextSibling === item)) {
+          container.insertBefore(item, ref);
+        }
+        return;
+      }
+      if (!target && under && (under === container || container.contains(under))) {
+        const all = items();
+        const last = all[all.length - 1];
+        if (last && last !== item) {
+          const r = last.getBoundingClientRect();
+          if (y > r.bottom || (y >= r.top && x > r.right)) container.appendChild(item);
+        }
+      }
+    }
+
+    function autoScroll() {
+      if (!drag) return;
+      const r = container.getBoundingClientRect();
+      const speed = (near) => Math.ceil(Math.min(1, near / EDGE_PX) * 16);
+      if (container.scrollHeight > container.clientHeight) {
+        if (drag.y < r.top + EDGE_PX) container.scrollTop -= speed(r.top + EDGE_PX - drag.y);
+        else if (drag.y > r.bottom - EDGE_PX) container.scrollTop += speed(drag.y - (r.bottom - EDGE_PX));
+      }
+      if (container.scrollWidth > container.clientWidth) {
+        if (drag.x < r.left + EDGE_PX) container.scrollLeft -= speed(r.left + EDGE_PX - drag.x);
+        else if (drag.x > r.right - EDGE_PX) container.scrollLeft += speed(drag.x - (r.right - EDGE_PX));
+      }
+      place(); // what is under the pointer changes as the list scrolls
+      drag.raf = requestAnimationFrame(autoScroll);
+    }
+
+    function finish(commit) {
+      if (!drag) return;
+      const { item, ghost, id, startOrder, raf } = drag;
+      cancelAnimationFrame(raf);
+      ghost.remove();
+      item.classList.remove('dragging');
+      container.classList.remove('sorting');
+      try { container.releasePointerCapture(id); } catch (e) { /* already released */ }
+      const changed = items().some((n, i) => n !== startOrder[i]);
+      if (!commit) startOrder.forEach((n) => container.appendChild(n)); // put it all back
+      drag = null;
+      // The click that follows letting go must not also open the page.
+      suppressClick = true;
+      setTimeout(() => { suppressClick = false; }, 60);
+      if (commit && changed) onCommit();
+    }
+
+    container.addEventListener('pointerdown', (e) => {
+      lastPointerType = e.pointerType;
+      if (!e.isPrimary || e.button !== 0 || drag || pending) return;
+      const item = e.target.closest(itemSel);
+      if (!item || !container.contains(item) || e.target.closest(NOT_DRAG_START)) return;
+      pending = { item, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, type: e.pointerType, timer: null };
+      if (e.pointerType !== 'mouse') pending.timer = setTimeout(begin, HOLD_MS);
+    });
+
+    document.addEventListener('pointermove', (e) => {
+      if (pending && e.pointerId === pending.id) {
+        pending.x = e.clientX;
+        pending.y = e.clientY;
+        const moved = Math.hypot(e.clientX - pending.x0, e.clientY - pending.y0);
+        if (pending.type === 'mouse') {
+          if (moved > START_PX) begin();
+        } else if (moved > SLOP_PX) {
+          clearPending(); // a swipe: let it scroll
+        }
+      }
+      if (drag && e.pointerId === drag.id) {
+        drag.x = e.clientX;
+        drag.y = e.clientY;
+        place();
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('pointerup', (e) => {
+      if (pending && e.pointerId === pending.id) clearPending();
+      if (drag && e.pointerId === drag.id) finish(true);
+    });
+    document.addEventListener('pointercancel', (e) => {
+      if (pending && e.pointerId === pending.id) clearPending();
+      if (drag && e.pointerId === drag.id) finish(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (drag && e.key === 'Escape') finish(false);
+    });
+    // Once a drag has begun, the page must not scroll under the finger.
+    document.addEventListener('touchmove', (e) => { if (drag) e.preventDefault(); }, { passive: false });
+    // A long press would otherwise raise the browser's image menu; a native
+    // image drag would take the pointer away from us.
+    container.addEventListener('contextmenu', (e) => {
+      if (pending || drag || lastPointerType !== 'mouse') e.preventDefault();
+    });
+    container.addEventListener('dragstart', (e) => e.preventDefault());
+    container.addEventListener('click', (e) => {
+      if (suppressClick) {
+        e.stopPropagation();
+        e.preventDefault();
+        suppressClick = false;
+      }
+    }, true);
+  }
+
   // commitReorder reads whatever order the page thumbnails are currently
-  // in (already rearranged live during dragover) and persists it — the
-  // grid itself is the source of truth for the drop, not a recomputed
-  // position.
+  // in (already rearranged live while dragging) and persists it: the grid
+  // itself is the source of truth for the drop, not a recomputed position.
   function commitReorder() {
     const jobId = state.selectedJobId;
     const order = Array.from(el('page-grid').querySelectorAll('.page-thumbnail')).map((t) => Number(t.dataset.page));
@@ -661,12 +793,11 @@
   function renderCombineThumb(key, entry, position) {
     const thumbnail = document.createElement('div');
     thumbnail.className = 'combine-thumb';
-    thumbnail.draggable = true;
     thumbnail.dataset.key = key;
 
     const src = pageThumbUrl(entry.jobId, entry.page);
     thumbnail.innerHTML = `
-      <img src="${src}" alt="${I18N.t('combine.thumbAlt', { n: position })}">
+      <img src="${src}" alt="${I18N.t('combine.thumbAlt', { n: position })}" draggable="false">
       <button type="button" class="combine-thumb-remove" title="${I18N.t('combine.removeTitle')}">&times;</button>
       <div class="combine-thumb-label">${position}</div>
     `;
@@ -677,33 +808,6 @@
 
     thumbnail.querySelector('.combine-thumb-remove').addEventListener('click', () => {
       removeFromCombine(key);
-    });
-
-    thumbnail.addEventListener('dragstart', (e) => {
-      state.combineDragKey = key;
-      thumbnail.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    thumbnail.addEventListener('dragend', () => {
-      thumbnail.classList.remove('dragging');
-      state.combineDragKey = null;
-      renderCombineBar();
-    });
-    thumbnail.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      if (state.combineDragKey == null || state.combineDragKey === key) return;
-      const dragged = el('combine-thumbs').querySelector('.combine-thumb.dragging');
-      if (!dragged) return;
-      const rect = thumbnail.getBoundingClientRect();
-      const before = e.clientX - rect.left < rect.width / 2;
-      thumbnail.parentNode.insertBefore(dragged, before ? thumbnail : thumbnail.nextSibling);
-    });
-    thumbnail.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (state.combineDragKey == null) return;
-      // Commit the order directly from the live DOM arrangement — what
-      // you saw while dragging is what gets combined.
-      state.combineOrder = Array.from(el('combine-thumbs').querySelectorAll('.combine-thumb')).map((t) => t.dataset.key);
     });
 
     return thumbnail;
@@ -770,11 +874,35 @@
       : I18N.t('page.label', { n: page });
     const show = pages.length > 1 && pos >= 0;
     const busy = viewerBusyWithPage();
+    el('pm-move-earlier').disabled = busy || pos <= 0;
+    el('pm-move-later').disabled = busy || pos < 0 || pos >= pages.length - 1;
     for (const [id, target] of [['pm-prev', pos - 1], ['pm-next', pos + 1]]) {
       const btn = el(id);
       btn.classList.toggle('invisible', !show);
       btn.disabled = busy || target < 0 || target >= pages.length;
     }
+  }
+
+  // Move the page on screen one place earlier or later in the scan: the
+  // precise way to reorder, beside dragging, and the one that needs no
+  // fingers or pointer skill.
+  async function moveCurrentPage(delta) {
+    const job = state.selectedJob;
+    if (!job || !state.viewer || viewerBusyWithPage()) return;
+    const order = (job.pages || []).map((p) => p.index);
+    const pos = order.indexOf(state.viewer.page);
+    const to = pos + delta;
+    if (pos < 0 || to < 0 || to >= order.length) return;
+    [order[pos], order[to]] = [order[to], order[pos]];
+    await withBusy(async () => {
+      await api(`/api/scans/${job.id}/pages/order`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order }),
+      });
+      await selectJob(job.id);
+      loadViewerImage();
+    });
   }
 
   function stepViewer(delta) {
@@ -1422,6 +1550,8 @@
   el('pm-ocr-back').addEventListener('click', endOcrUI);
   el('pm-ocr-copy').addEventListener('click', copyOcrText);
   el('pm-delete').addEventListener('click', deleteCurrentPage);
+  el('pm-move-earlier').addEventListener('click', () => moveCurrentPage(-1));
+  el('pm-move-later').addEventListener('click', () => moveCurrentPage(1));
   el('pm-combine-check').addEventListener('change', (e) => {
     if (!state.viewer) return;
     const { jobId, page } = state.viewer;
@@ -1445,21 +1575,15 @@
     state.viewer = null;
   });
 
-  // Fallback for dropping into empty grid space past the last thumbnail
-  // (e.g. an incomplete last row) — wired once here rather than in
-  // renderPageThumbnail, since #page-grid itself is never recreated, only
-  // its children (renderJobDetail rebuilds those on every render).
-  const pageGrid = el('page-grid');
-  pageGrid.addEventListener('dragover', (e) => {
-    if (e.target !== pageGrid || state.dragSrcIndex == null) return;
-    e.preventDefault();
-    const dragged = pageGrid.querySelector('.page-thumbnail.dragging');
-    if (dragged) pageGrid.appendChild(dragged);
-  });
-  pageGrid.addEventListener('drop', (e) => {
-    if (e.target !== pageGrid || state.dragSrcIndex == null) return;
-    e.preventDefault();
-    commitReorder();
+  // The page grid and the selection bar are never recreated, only their
+  // children, so each sorter is attached once.
+  makeSortable(el('page-grid'), '.page-thumbnail', { onCommit: commitReorder });
+  makeSortable(el('combine-thumbs'), '.combine-thumb', {
+    onCommit: () => {
+      // The bar's order is what "Combine" and "Send" use, in this order.
+      state.combineOrder = Array.from(el('combine-thumbs').querySelectorAll('.combine-thumb')).map((t) => t.dataset.key);
+      renderCombineBar();
+    },
   });
 
   // Both of these render translated text on first call, so wait for the

@@ -215,17 +215,20 @@ all (under about 520 pixels tall) falls back to an ordinary scrolling page.
   has been sent to Paperless and how it is going.
 - **Pages**: one thumbnail per page, small JPEGs the server makes and
   keeps, so a long scan loads quickly even over a phone connection. Each
-  carries its state ("auto-cropped", "auto-rotated", "in Paperless"). Drag
-  a page to reorder it (page numbers don't change, only their position);
-  click it to open it. The tick-box in its corner selects it, and *Select
+  carries its state ("auto-cropped", "auto-rotated", "in Paperless"). To
+  reorder, drag a page with a mouse, or on a phone or tablet **press and
+  hold, then drag** (a quick swipe still scrolls; the list scrolls by
+  itself when you drag near its edge, and Escape cancels); the page viewer's
+  *⋯* menu also has *Move earlier* and *Move later* for exact moves. Page
+  numbers don't change, only their position. Click or tap a page to open it. The tick-box in its corner selects it, and *Select
   all* / *Clear* above the grid do the whole scan.
 - **Page viewer**: the arrows (or the left/right keys) step through the
   scan, and what has been done to the page is shown under its title.
   *Rotate*, *Crop* and *Extract text* are on the left; *Select page*,
   *Export* and *⋯* (*Restore original*, *Delete page*) on the right.
 - **The selection bar**: ticked pages, from one scan or several, collect in
-  a bar at the bottom with a thumbnail of each. Drag them to set the order,
-  or × to drop one. *Send to Paperless…* sends them as one document with a
+  a bar at the bottom with a thumbnail of each. Drag them (press and hold on a
+  touch screen) to set the order, or × to drop one. *Send to Paperless…* sends them as one document with a
   title, date, correspondent, document type and tags, picked from your
   Paperless lists (tags are toggle buttons; anything left blank is up to
   Paperless's own rules). *Combine into PDF* downloads them as one PDF.

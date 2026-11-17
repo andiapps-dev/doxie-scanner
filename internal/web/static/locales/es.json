@@ -78,7 +78,8 @@
     "autoRotated_one": "Se enderezó {count} página.",
     "autoRotated_other": "Se enderezaron {count} páginas.",
     "autoCropped_one": "Se recortó {count} página a la hoja.",
-    "autoCropped_other": "Se recortaron {count} páginas a la hoja."
+    "autoCropped_other": "Se recortaron {count} páginas a la hoja.",
+    "helpTouch": "Mantenga pulsada una página y arrástrela para reordenar. Toque una página para abrirla."
   },
   "combine": {
     "titlePlaceholder": "Título del documento",
@@ -122,7 +123,9 @@
     "pageOf": "Página {n} de {total}",
     "restoreOriginal": "Restaurar original",
     "restoreOriginalTitle": "Devuelve esta página exactamente como se escaneó",
-    "more": "Más"
+    "more": "Más",
+    "moveEarlier": "Mover antes",
+    "moveLater": "Mover después"
   },
   "confirm": {
     "bulkDelete": "¿Eliminar {scans} y sus {pages}? No se puede deshacer.",
