@@ -17,11 +17,18 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 type scannerStatusResponse struct {
-	Connected bool      `json:"connected"`
-	VID       string    `json:"vid"`
-	PID       string    `json:"pid"`
-	Driver    string    `json:"driver"`
-	Error     *apiError `json:"error,omitempty"`
+	Connected bool   `json:"connected"`
+	VID       string `json:"vid"`
+	PID       string `json:"pid"`
+	Driver    string `json:"driver"`
+	// AutoRotate is true when pages can be turned upright from their text.
+	AutoRotate bool `json:"autoRotate"`
+	// AutoCrop is always true: cropping needs nothing installed.
+	AutoCrop bool `json:"autoCrop"`
+	// PaperlessURL is set when sending to Paperless is configured; the UI
+	// uses it to link to filed documents.
+	PaperlessURL string    `json:"paperlessUrl,omitempty"`
+	Error        *apiError `json:"error,omitempty"`
 }
 
 // handleScannerStatus reports whether the scanner is currently reachable.
@@ -34,6 +41,12 @@ func (s *Server) handleScannerStatus(w http.ResponseWriter, r *http.Request) {
 		VID:    fmt.Sprintf("0x%04x", info.VID),
 		PID:    fmt.Sprintf("0x%04x", info.PID),
 		Driver: info.Name,
+		// Auto-rotate needs tesseract's orientation data; auto-crop is pure Go.
+		AutoRotate: s.jobs.CanAutoRotate(),
+		AutoCrop:   true,
+	}
+	if s.paperless != nil {
+		resp.PaperlessURL = s.paperless.BaseURL()
 	}
 
 	if err := s.drv.Detect(r.Context()); err != nil {

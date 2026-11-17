@@ -634,3 +634,29 @@ func TestHandleDeletePage_JobNotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 }
+
+func TestHandleGetScan_ReportsStageWhileRunning(t *testing.T) {
+	sess := &fakeSession{block: make(chan struct{})}
+	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400"}, session: sess}
+	srv, _ := newTestServer(t, drv)
+	id, err := srv.jobs.StartScan(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The fake blocks inside HasNextPage, which is the "checking" stage;
+	// wait for the manager to get there.
+	deadline := time.Now().Add(5 * time.Second)
+	for srv.jobs.CurrentJob().Stage != "checking" && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/scans/"+id, nil))
+	var resp jobDetailResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Stage != "checking" || resp.PagesScanned == nil {
+		t.Errorf("response = stage %q pagesScanned %v, want the running stage", resp.Stage, resp.PagesScanned)
+	}
+}

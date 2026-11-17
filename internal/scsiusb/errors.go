@@ -27,7 +27,7 @@ func (e *ErrClaimInterface) Error() string {
 func (e *ErrClaimInterface) Unwrap() error { return e.Cause }
 
 // ScsiError represents a transport- or protocol-level failure that isn't
-// a graceful end-of-document condition (see ScanComplete).
+// a graceful end-of-document condition.
 type ScsiError struct {
 	Opcode  byte
 	Message string
@@ -51,17 +51,4 @@ type CheckConditionError struct {
 
 func (e *CheckConditionError) Error() string {
 	return fmt.Sprintf("scsiusb: check condition, sense=% x", e.Sense)
-}
-
-// ScanComplete is a sentinel error a device-specific sense classifier can
-// return (wrapped from a CheckConditionError) to signal a normal
-// end-of-document condition rather than a real error. Callers should
-// check for it with errors.Is/errors.As and treat it as success, not
-// failure.
-type ScanComplete struct {
-	Reason string
-}
-
-func (e *ScanComplete) Error() string {
-	return fmt.Sprintf("scan complete: %s", e.Reason)
 }

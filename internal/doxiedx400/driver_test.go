@@ -1,234 +1,234 @@
 package doxiedx400
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"image"
+	"image/jpeg"
 	"testing"
 
 	"github.com/andiapps-dev/doxie-scanner/internal/driver"
 	"github.com/andiapps-dev/doxie-scanner/internal/scsiusb"
 )
 
-// withFakeOpenDevice temporarily swaps openDeviceFunc to return the given
-// device/error, restoring the original (real, hardware-backed) function
-// when the test finishes.
 func withFakeOpenDevice(t *testing.T, dev scsiusb.BulkDevice, err error) {
 	t.Helper()
 	original := openDeviceFunc
-	openDeviceFunc = func() (scsiusb.BulkDevice, error) {
-		return dev, err
-	}
+	openDeviceFunc = func() (scsiusb.BulkDevice, error) { return dev, err }
 	t.Cleanup(func() { openDeviceFunc = original })
+}
+
+func openFake(t *testing.T, dev *fakeDevice) *session {
+	t.Helper()
+	withFakeOpenDevice(t, dev, nil)
+	sess, err := New().Open(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sess.(*session)
 }
 
 func TestDriverInfo(t *testing.T) {
 	info := New().Info()
-	if info.Name != "doxie-dx400" {
-		t.Errorf("Name: got %q", info.Name)
-	}
-	if info.VID != VID || info.PID != PID {
-		t.Errorf("VID/PID: got %#04x/%#04x", info.VID, info.PID)
+	if info.Name != "doxie-dx400" || info.VID != VID || info.PID != PID {
+		t.Errorf("got %+v", info)
 	}
 }
 
-func TestDxDriver_Detect_Success(t *testing.T) {
-	dev := &fakeDevice{t: t}
-	withFakeOpenDevice(t, dev, nil)
-
-	d := New()
-	if err := d.Detect(context.Background()); err != nil {
-		t.Fatalf("Detect: %v", err)
-	}
-	if !dev.closed {
-		t.Error("expected Detect to close the device after probing it")
-	}
-}
-
-func TestDxDriver_Detect_OpenError(t *testing.T) {
+func TestOpenError(t *testing.T) {
 	withFakeOpenDevice(t, nil, errors.New("no device"))
-
-	d := New()
-	if err := d.Detect(context.Background()); err == nil {
-		t.Fatal("expected an error")
+	if _, err := New().Open(context.Background()); err == nil {
+		t.Error("expected the open error")
 	}
 }
 
-func TestDxDriver_Detect_CloseErrorPropagates(t *testing.T) {
-	dev := &fakeDevice{t: t, closeErr: errors.New("close failed")}
-	withFakeOpenDevice(t, dev, nil)
-
-	d := New()
-	if err := d.Detect(context.Background()); err == nil {
-		t.Fatal("expected the close error to propagate")
-	}
-}
-
-func TestDxDriver_Open_Success(t *testing.T) {
+func TestHasNextPage(t *testing.T) {
 	dev := &fakeDevice{t: t}
-	withFakeOpenDevice(t, dev, nil)
-
-	d := New()
-	sess, err := d.Open(context.Background())
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	if sess == nil {
-		t.Fatal("expected a non-nil session")
+	dev.ok([]byte{0x00, 0x00, 0x02, 0x05, 0x01})
+	ok, err := openFake(t, dev).HasNextPage(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("got %v, %v", ok, err)
 	}
 }
 
-func TestDxDriver_Open_Error(t *testing.T) {
-	withFakeOpenDevice(t, nil, errors.New("no device"))
-
-	d := New()
-	if _, err := d.Open(context.Background()); err == nil {
-		t.Fatal("expected an error")
-	}
-}
-
-func TestSession_HasNextPage(t *testing.T) {
+func TestHasNextPage_WaitsForTheNextSheetInsideAStack(t *testing.T) {
 	dev := &fakeDevice{t: t}
-	dev.queueOKCommand([]byte{0x01})
-	sess := &session{dev: dev}
-
-	ok, err := sess.HasNextPage(context.Background())
-	if err != nil {
-		t.Fatalf("HasNextPage: %v", err)
+	dev.scriptFirstSheet(false, scriptedSide{filled(0x11, 10), 1})
+	dev.paper(false)
+	dev.paper(false)
+	dev.paper(true)
+	sess, sleeps := testSession(t, dev)
+	ctx := context.Background()
+	if _, err := sess.scanSides(ctx, driver.ScanOptions{}); err != nil {
+		t.Fatal(err)
 	}
-	if !ok {
-		t.Error("expected true")
-	}
-}
 
-func TestSession_HasNextPage_Error(t *testing.T) {
-	sess := &session{dev: &alwaysFailDevice{}}
-	if _, err := sess.HasNextPage(context.Background()); err == nil {
-		t.Fatal("expected an error")
+	if more, err := sess.HasNextPage(ctx); err != nil || !more || *sleeps != 2 {
+		t.Fatalf("got %v, %v after %d waits; want the sheet found after 2", more, err, *sleeps)
 	}
 }
 
-func TestSession_ScanPage_Simplex(t *testing.T) {
+func TestHasNextPage_EmptyFeederEndsTheWait(t *testing.T) {
 	dev := &fakeDevice{t: t}
-	scriptFullPageSetup(dev)
-	line := make([]byte, lineWidthBytes)
-	line[0], line[1], line[2] = 0x10, 0x20, 0x30
-	dev.queueOKCommand(line)
-	dev.queueEndOfDocumentImageRead()
-	dev.queueOKCommand(make([]byte, senseBufferLen))
-	dev.queueGoodStatus()
-	dev.queueGoodStatus()
+	dev.scriptFirstSheet(false, scriptedSide{filled(0x11, 10), 1})
+	polls := int(nextSheetWait / nextSheetPoll)
+	for i := 0; i <= polls; i++ {
+		dev.paper(false)
+	}
+	sess, sleeps := testSession(t, dev)
+	ctx := context.Background()
+	if _, err := sess.scanSides(ctx, driver.ScanOptions{}); err != nil {
+		t.Fatal(err)
+	}
 
-	sess := &session{dev: dev}
-	page, err := sess.ScanPage(context.Background(), driver.ScanOptions{Duplex: false})
-	if err != nil {
-		t.Fatalf("ScanPage: %v", err)
-	}
-	if page.Front == nil {
-		t.Fatal("expected a non-nil Front image")
-	}
-	if page.Back != nil {
-		t.Error("expected a nil Back image for a simplex scan")
-	}
-	if page.Front.Bounds().Dy() != 1 {
-		t.Errorf("expected 1 scanline, got %d", page.Front.Bounds().Dy())
+	if more, err := sess.HasNextPage(ctx); err != nil || more || *sleeps != polls || len(dev.reads) != 0 {
+		t.Fatalf("got %v, %v after %d waits; want no paper after %d", more, err, *sleeps, polls)
 	}
 }
 
-func TestSession_ScanPage_DuplexNonBlankBack(t *testing.T) {
+func TestHasNextPage_OutsideAStackChecksOnce(t *testing.T) {
 	dev := &fakeDevice{t: t}
-	scriptFullPageSetup(dev)
-	// Two stripes: front (even index) then rear (odd index), each one
-	// full scanline. Rear has plenty of dark pixels so it isn't blank.
-	frontLine := make([]byte, lineWidthBytes)
-	for i := range frontLine {
-		frontLine[i] = 250
-	}
-	rearLine := make([]byte, lineWidthBytes)
-	// leave rearLine all zero (black): clearly not blank
-	dev.queueOKCommand(frontLine)
-	dev.queueOKCommand(rearLine)
-	dev.queueEndOfDocumentImageRead()
-	dev.queueOKCommand(make([]byte, senseBufferLen))
-	dev.queueGoodStatus()
-	dev.queueGoodStatus()
-
-	sess := &session{dev: dev}
-	page, err := sess.ScanPage(context.Background(), driver.ScanOptions{Duplex: true})
-	if err != nil {
-		t.Fatalf("ScanPage: %v", err)
-	}
-	if page.Front == nil || page.Back == nil {
-		t.Fatal("expected both Front and Back images")
-	}
-	if page.BackBlank {
-		t.Error("expected BackBlank to be false")
+	dev.paper(false)
+	sess, sleeps := testSession(t, dev)
+	if more, err := sess.HasNextPage(context.Background()); err != nil || more || *sleeps != 0 {
+		t.Fatalf("got %v, %v after %d waits", more, err, *sleeps)
 	}
 }
 
-func TestSession_ScanPage_DuplexBlankBackDropped(t *testing.T) {
+func TestScanPage_NewSettingsStartANewStack(t *testing.T) {
+	side := scriptedSide{filled(0x11, 10), 1}
 	dev := &fakeDevice{t: t}
-	scriptFullPageSetup(dev)
-	frontLine := make([]byte, lineWidthBytes)
-	blankRearLine := make([]byte, lineWidthBytes)
-	for i := range blankRearLine {
-		blankRearLine[i] = 250 // near-white: blank
-	}
-	dev.queueOKCommand(frontLine)
-	dev.queueOKCommand(blankRearLine)
-	dev.queueEndOfDocumentImageRead()
-	dev.queueOKCommand(make([]byte, senseBufferLen))
-	dev.queueGoodStatus()
-	dev.queueGoodStatus()
+	dev.scriptFirstSheet(false, side)
+	dev.ok(nil) // E7 job
+	dev.scriptFirstSheet(false, side)
+	sess, _ := testSession(t, dev)
+	ctx := context.Background()
 
-	sess := &session{dev: dev}
-	page, err := sess.ScanPage(context.Background(), driver.ScanOptions{Duplex: true})
-	if err != nil {
-		t.Fatalf("ScanPage: %v", err)
-	}
-	if page.Front == nil {
-		t.Fatal("expected a non-nil Front image")
-	}
-	if page.Back != nil {
-		t.Error("expected Back to be nil when the rear side is blank")
-	}
-	if !page.BackBlank {
-		t.Error("expected BackBlank to be true")
-	}
-}
-
-func TestSession_ScanPage_Error(t *testing.T) {
-	sess := &session{dev: &alwaysFailDevice{}}
-	if _, err := sess.ScanPage(context.Background(), driver.ScanOptions{}); err == nil {
-		t.Fatal("expected an error")
-	}
-}
-
-func TestSession_Close(t *testing.T) {
-	dev := &fakeDevice{t: t}
-	sess := &session{dev: dev}
-	if err := sess.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-	if !dev.closed {
-		t.Error("expected the underlying device to be closed")
-	}
-}
-
-func TestJoinChunks(t *testing.T) {
-	if got := joinChunks(nil); len(got) != 0 {
-		t.Errorf("empty input: got %v", got)
-	}
-	got := joinChunks([][]byte{{1, 2}, {3}, {4, 5, 6}})
-	want := []byte{1, 2, 3, 4, 5, 6}
-	if len(got) != len(want) {
-		t.Fatalf("got %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("byte %d: got %d, want %d", i, got[i], want[i])
+	for _, res := range []int{300, 600} {
+		if _, err := sess.scanSides(ctx, driver.ScanOptions{Resolution: res}); err != nil {
+			t.Fatalf("%d dpi: %v", res, err)
 		}
 	}
+	reserves := 0
+	for _, op := range dev.opcodes() {
+		if op == [3]byte{opReserve, 0, flagJob} {
+			reserves++
+		}
+	}
+	if reserves != 2 || len(dev.reads) != 0 {
+		t.Errorf("reserved the job %d times with %d replies unused; want a fresh job for new settings", reserves, len(dev.reads))
+	}
 }
 
-var _ image.Image = (*image.NRGBA)(nil) // sanity: rawToImage's return type satisfies driver.Page.Front
+func TestEndBatch_WithoutAStackSendsNothing(t *testing.T) {
+	dev := &fakeDevice{t: t}
+	sess, _ := testSession(t, dev)
+	if err := sess.EndBatch(context.Background()); err != nil || len(dev.commands) != 0 {
+		t.Fatalf("got %v with %d commands", err, len(dev.commands))
+	}
+}
+
+func TestSessionClose_EndsAnOpenStack(t *testing.T) {
+	dev := &fakeDevice{t: t}
+	dev.scriptFirstSheet(false, scriptedSide{filled(0x11, 10), 1})
+	dev.ok(nil) // E7 job
+	sess, _ := testSession(t, dev)
+	if _, err := sess.scanSides(context.Background(), driver.ScanOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sess.Close(); err != nil || !dev.closed {
+		t.Fatalf("close: %v, closed=%v", err, dev.closed)
+	}
+	ops := dev.opcodes()
+	if last := ops[len(ops)-1]; last != [3]byte{opRelease, 0, flagJob} {
+		t.Errorf("last command %x, want the job released before closing", last)
+	}
+}
+
+func decodes(t *testing.T, s side) image.Point {
+	t.Helper()
+	img, err := jpeg.Decode(bytes.NewReader(s.JPEG))
+	if err != nil {
+		t.Fatalf("side does not decode: %v", err)
+	}
+	return img.Bounds().Size()
+}
+
+func TestScanPage_DuplexReturnsBothSidesEvenWhenBlank(t *testing.T) {
+	dev := &fakeDevice{t: t}
+	dev.scriptFirstSheet(true,
+		scriptedSide{fixture(t, "ink-300.scan"), 32},
+		scriptedSide{fixture(t, "blank-300.scan"), 32})
+
+	page, err := openFake(t, dev).scanSides(context.Background(), driver.ScanOptions{Duplex: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := decodes(t, page.Front); got != (image.Point{2550, 32}) {
+		t.Errorf("front: %v", got)
+	}
+	if page.Back == nil {
+		t.Fatal("a blank back must still be returned; dropping it is the caller's decision")
+	}
+	decodes(t, *page.Back)
+	if page.Front.XDPI != 300 || page.Front.YDPI != 300 {
+		t.Errorf("dpi: %dx%d", page.Front.XDPI, page.Front.YDPI)
+	}
+}
+
+func TestScanPage_200dpiReportsNonSquareSampling(t *testing.T) {
+	dev := &fakeDevice{t: t}
+	dev.scriptFirstSheet(false, scriptedSide{fixture(t, "ink-300.scan"), 32})
+
+	page, err := openFake(t, dev).scanSides(context.Background(), driver.ScanOptions{Resolution: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Front.XDPI != 300 || page.Front.YDPI != 200 {
+		t.Errorf("200 dpi is read at 300 across: got %dx%d", page.Front.XDPI, page.Front.YDPI)
+	}
+}
+
+func TestScanPage_SimplexDefaultsTo300(t *testing.T) {
+	dev := &fakeDevice{t: t}
+	dev.scriptFirstSheet(false, scriptedSide{fixture(t, "ink-300.scan"), 32})
+
+	page, err := openFake(t, dev).scanSides(context.Background(), driver.ScanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Back != nil {
+		t.Error("simplex scan should have no back")
+	}
+	window := dev.payloads[0]
+	if window[offYRes] != 0x01 || window[offYRes+1] != 0x2c {
+		t.Errorf("default resolution should be 300 dpi, window yres % x", window[offYRes:offYRes+2])
+	}
+}
+
+func TestScanPage_RejectsUnsupportedResolution(t *testing.T) {
+	dev := &fakeDevice{t: t}
+	if _, err := openFake(t, dev).scanSides(context.Background(), driver.ScanOptions{Resolution: 150}); err == nil {
+		t.Fatal("expected 150 dpi to be rejected")
+	}
+	if len(dev.commands) != 0 {
+		t.Errorf("nothing should be sent for an invalid resolution, sent %d commands", len(dev.commands))
+	}
+}
+
+func TestScanPage_SurfacesScanErrors(t *testing.T) {
+	dev := &fakeDevice{t: t}
+	dev.checkCondition(nil, senseBlock(ascADF, ascqChuteEmpty, 0, 0, 0))
+	if _, err := openFake(t, dev).scanSides(context.Background(), driver.ScanOptions{}); !errors.Is(err, ErrNoPaper) {
+		t.Fatalf("got %v, want ErrNoPaper", err)
+	}
+}
+
+func TestSessionClose(t *testing.T) {
+	dev := &fakeDevice{t: t}
+	if err := openFake(t, dev).Close(); err != nil || !dev.closed {
+		t.Fatalf("close: %v, closed=%v", err, dev.closed)
+	}
+}

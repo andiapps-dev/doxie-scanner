@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# check=skip=FromPlatformFlagConstDisallowed
 
 # linux/amd64 only, by design: this binary is cgo + libusb-1.0, and
 # cross-building arm64 via QEMU emulation is slow and fragile for a
@@ -28,7 +29,9 @@ FROM --platform=linux/amd64 alpine:3.24
 # against either C library directly, so no builder-stage changes are
 # needed for this feature — only these runtime packages. Add
 # tesseract-ocr-data-<lang> for any language beyond the default "eng".
-RUN apk add --no-cache libusb ca-certificates tesseract-ocr tesseract-ocr-data-eng unpaper && \
+# tesseract-ocr-data-osd is the orientation data auto-rotate reads a
+# page's text with (internal/orient); it is language-independent.
+RUN apk add --no-cache libusb ca-certificates tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-osd unpaper && \
     adduser -D -u 1000 doxie
 
 COPY --from=builder /out/doxie-scanner /usr/local/bin/doxie-scanner

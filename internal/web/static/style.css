@@ -172,3 +172,17 @@
   justify-content: center;
   z-index: 2000;
 }
+
+/* Small status notes under a page thumbnail: auto-rotated, already in Paperless. */
+.page-thumbnail-badges {
+  font-size: 0.7rem;
+  color: var(--bs-success-text-emphasis, var(--bs-secondary-color));
+}
+
+/* Page switcher arrows in the viewer header: big enough to hit easily. */
+#pm-prev,
+#pm-next {
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.15rem 0.75rem;
+}

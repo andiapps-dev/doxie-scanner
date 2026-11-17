@@ -1,4 +1,4 @@
-package doxiedx400
+package pageedit
 
 import (
 	"image"

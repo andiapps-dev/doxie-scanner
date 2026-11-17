@@ -34,6 +34,31 @@ type PageMeta struct {
 	File     string `json:"file"`
 	WidthPx  int    `json:"widthPx"`
 	HeightPx int    `json:"heightPx"`
+	// AutoRotated is the clockwise turn, in degrees, auto-rotate applied
+	// to this page after scanning (0 = left as scanned). It is a record
+	// of what happened, so the page can be turned back by hand.
+	AutoRotated int `json:"autoRotated,omitempty"`
+	// AutoCrop records that auto-crop trimmed this page to its sheet; nil
+	// means it was left as scanned.
+	AutoCrop *AutoCropInfo `json:"autoCrop,omitempty"`
+	// Original is the file holding the page exactly as scanned, kept when
+	// an automatic crop changed it so "restore original" can undo that.
+	// Empty when the page was never changed automatically.
+	Original string `json:"original,omitempty"`
+}
+
+// AutoCropInfo is what auto-crop did to a page.
+type AutoCropInfo struct {
+	// The sheet, in the straightened frame of the original.
+	X int `json:"x"`
+	Y int `json:"y"`
+	W int `json:"w"`
+	H int `json:"h"`
+	// Straighten is the turn applied, degrees counter-clockwise (0 = none).
+	Straighten float64 `json:"straighten,omitempty"`
+	// FromWidth and FromHeight are the size before the crop.
+	FromWidth  int `json:"fromWidth"`
+	FromHeight int `json:"fromHeight"`
 }
 
 // JobMeta is the full persisted record for one scan job, stored as
@@ -50,6 +75,33 @@ type JobMeta struct {
 	PageCount   int        `json:"pageCount"`
 	Pages       []PageMeta `json:"pages"`
 	Error       string     `json:"error,omitempty"`
+	// AutoRotate and AutoCrop record that the scan was started with them on.
+	AutoRotate bool `json:"autoRotate,omitempty"`
+	AutoCrop   bool `json:"autoCrop,omitempty"`
+	// Sent lists the documents made from this scan's pages and handed to
+	// Paperless, so the scan shows what has already been filed.
+	Sent []SentDocument `json:"sent,omitempty"`
+}
+
+// Send states: the Paperless task states plus SentFailed.
+const (
+	SentQueued     = "queued"
+	SentProcessing = "processing"
+	SentDone       = "done"
+	SentFailed     = "failed"
+)
+
+// SentDocument is one upload to Paperless. A document can combine pages
+// from several scans, so each scan it touches records the pages of its own
+// that went into it.
+type SentDocument struct {
+	Title      string    `json:"title"`
+	Pages      []int     `json:"pages"` // this scan's page indexes, in document order
+	TaskID     string    `json:"taskId,omitempty"`
+	Status     string    `json:"status"`
+	DocumentID int       `json:"documentId,omitempty"`
+	Error      string    `json:"error,omitempty"`
+	SentAt     time.Time `json:"sentAt"`
 }
 
 // NewJobID returns a human-sortable, collision-resistant job identifier:
@@ -81,6 +133,11 @@ func randHex(n int) string {
 		panic("storage: crypto/rand unavailable: " + err.Error())
 	}
 	return hex.EncodeToString(buf)[:n]
+}
+
+// OriginalFilename returns the filename that keeps page index as scanned.
+func OriginalFilename(index int) string {
+	return fmt.Sprintf("page-%03d.orig.png", index)
 }
 
 // PageFilename returns the on-disk filename for a page.

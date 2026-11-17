@@ -1,62 +1,129 @@
-// Package doxiedx400 implements the driver.Driver interface for the
-// Doxie Pro DX400 (Avision OEM hardware, USB VID:PID 2740:000c). It is a
-// direct port of the reference Python implementation
-// (Utilities/doxie-pro-scanner/doxie_scsi_scan.py in the andiapps-dev
-// monorepo history) — a from-scratch reverse-engineering of the standard
-// SCSI scanner command set this device accepts over plain USB bulk
-// transfers, with no SANE dependency.
+// Package doxiedx400 is the driver for the Doxie Pro DX400 (Avision OEM
+// hardware, USB VID:PID 2740:000c). It speaks the protocol Doxie's own
+// driver uses: a 12-byte command set in which the scanner JPEG-encodes each
+// side on the device, with one scan job held open across a whole stack of
+// sheets.
+//
+// The command sequence, the SET WINDOW payloads and the other constants
+// here were captured from Doxie's own Windows and macOS drivers talking to
+// real hardware, and the driver was written against that wire data in
+// github.com/jasonlearst/doxie-scanner (MIT), a fork of this project. This
+// package is adapted from that one, as is the test data under testdata/.
+// It replaced this project's first driver, which is in the git history.
+//
+// Open returns a driver.Session. Its ScanPage decodes each side and drops a
+// blank duplex back; scanSides, one layer down, hands back the scanner's
+// own JPEGs.
 package doxiedx400
 
 import "encoding/hex"
 
-// USB identity.
 const (
 	VID uint16 = 0x2740
 	PID uint16 = 0x000c
 
-	// Endpoint addresses as documented by the device; scsiusb.Open wants
-	// plain endpoint numbers, so these get masked down to the low nibble
-	// when opening the device (see driver.go).
-	epBulkIn  = 0x81
-	epBulkOut = 0x02
+	epBulkIn    = 0x81
+	epBulkOut   = 0x02
+	epInterrupt = 0x83
+
+	buttonPacketLen      = 8
+	buttonPressed   byte = 0x80
 
 	usbInterfaceNum = 0
 )
 
-// Standard SCSI opcodes used by this device's command set.
 const (
-	opTestUnitReady byte = 0x00
-	opRequestSense  byte = 0x03
-	opMediaCheck    byte = 0x08
-	opInquiry       byte = 0x12
-	opReserveUnit   byte = 0x16
-	opReleaseUnit   byte = 0x17
-	opScan          byte = 0x1b
-	opSetWindow     byte = 0x24
-	opRead          byte = 0x28
-	opSend          byte = 0x2a
+	opSense       byte = 0xE3
+	opSetWindow   byte = 0xE4
+	opReserve     byte = 0xE6
+	opRelease     byte = 0xE7
+	opSensor      byte = 0xE8
+	opRead        byte = 0xA8
+	opSend        byte = 0xAA
+	flagJob       byte = 0x02
+	flagScanUnit  byte = 0x00
+	sensorReplyLn      = 5
 )
 
-// Avision "datatype" byte (CDB byte index 2) for READ/SEND commands.
 const (
-	datatypeReadImageData     byte = 0x00
-	datatypeGetCalibrationFmt byte = 0x60
-	datatypeDownloadGamma     byte = 0x81
-	datatype3x3ColorMatrix    byte = 0x83
-	datatypeAttachTruncHead   byte = 0x95
-	datatypeAttachTruncTail   byte = 0x96
+	dtImageData       byte = 0x00
+	dtCalibrationFmt  byte = 0x60
+	dtGamma           byte = 0x81
+	dtJPEGQuant       byte = 0x8B
+	dtTruncateHead    byte = 0x95
+	dtTruncateTail    byte = 0x96
+	dtScanStatus      byte = 0xA0
+	dtDuplexTransfer  byte = 0xB2
+	calibrationFmtLen      = 0x24
+	scanStatusLen          = 5
+	duplexTransferLen      = 7
 )
 
-// dataDQ is a device-specific "data type qualifier" observed in the
-// original USB capture — used on both the calibration-format READ and
-// every image-data READ.
-const dataDQ uint16 = 0x0a0d
+// readChunkBytes is the fixed size of every image-data READ. The scanner
+// always returns a full chunk; on a side's last chunk, the sense data
+// says how many of those bytes are real.
+const readChunkBytes = 0x40000
 
-// mustDecodeHex decodes a hex string that is known-constant at compile
-// time; a decode failure here means the literal itself is corrupt, which
-// can only happen from a transcription error, so panicking during
-// package init is the right failure mode (caught immediately by
-// protocol_test.go, long before it could reach real hardware).
+// Every payload the host sends starts with a 4-byte header:
+// 00 00 <version> <total length>.
+var truncateNone = mustDecodeHex("0000010a000000000000")
+
+func gammaPayload(channel byte) []byte {
+	b := make([]byte, 0, 8+len(gammaCurve))
+	b = append(b, 0x00, 0x00, 0x01, 0x02, 0x08, 0x00, channel, 0x08)
+	return append(b, gammaCurve...)
+}
+
+func quantPayload(tables []byte) []byte {
+	return append([]byte{0x00, 0x00, 0x01, 0x84}, tables...)
+}
+
+// gammaCurve is the 256-entry, 16-bit-per-entry tone curve Doxie's
+// driver sends for every channel at every resolution.
+var gammaCurve = mustDecodeHex(
+	"0000000c001100160019001d0020002300250028002a002c002f003100330035" +
+		"00370039003a003c003e0040004100430045004600480049004b004c004e004f" +
+		"0050005200530055005600570059005a005b005c005e005f0060006100620064" +
+		"00650066006700680069006b006c006d006e006f007000710072007300740075" +
+		"0076007700780079007a007b007c007d007e007f008000810082008300840085" +
+		"0086008700880089008a008b008b008c008d008e008f00900091009200920093" +
+		"0094009500960097009800980099009a009b009c009d009d009e009f00a000a1" +
+		"00a100a200a300a400a500a500a600a700a800a900a900aa00ab00ac00ac00ad" +
+		"00ae00af00af00b000b100b200b200b300b400b500b500b600b700b700b800b9" +
+		"00ba00ba00bb00bc00bc00bd00be00bf00bf00c000c100c100c200c300c300c4" +
+		"00c500c600c600c700c800c800c900ca00ca00cb00cc00cc00cd00ce00ce00cf" +
+		"00d000d000d100d100d200d300d300d400d500d500d600d700d700d800d900d9" +
+		"00da00da00db00dc00dc00dd00de00de00df00df00e000e100e100e200e200e3" +
+		"00e400e400e500e600e600e700e700e800e900e900ea00ea00eb00ec00ec00ed" +
+		"00ed00ee00ee00ef00f000f000f100f100f200f300f300f400f400f500f500f6" +
+		"00f700f700f800f800f900f900fa00fb00fb00fc00fc00fd00fd00fe00fe00ff",
+)
+
+// quantTables are the luma+chroma JPEG quantization tables (natural,
+// row-major order) Doxie's driver uploads per resolution. Any tables
+// work, since the host writes the same tables into the JPEG header;
+// these keep file sizes close to what Doxie's app produces.
+var quantTables = map[int][]byte{
+	200: mustDecodeHex(
+		"04040404040506070404040404070707040404040507080704040404060a0a07" +
+			"04040507080d0c09040407080a0c0d0b0608090a0c0e0e0c090b0b0c0d0c0c0c" +
+			"040404060c0c0c0c040404080c0c0c0c0404070c0c0c0c0c06080c0c0c0c0c0c" +
+			"0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+	),
+	300: mustDecodeHex(
+		"040404040407090b04040404050a0b0a04040404070a0c0a04040405090f0e0b" +
+			"0404070a0c13120e04060a0b0e121410090b0e0f121515120d10111114111211" +
+			"04040408111111110404050c1111111104050a1111111111080c111111111111" +
+			"1111111111111111111111111111111111111111111111111111111111111111",
+	),
+	600: mustDecodeHex(
+		"04040404060a0d1004040405070f100e040404060a0f120e040406080d171510" +
+			"05060a0e121c1b1406090e11151b1d180d1114171b1f1f1a131819191d1a1b1a" +
+			"0405060c1a1a1a1a050507111a1a1a1a06070e1a1a1a1a1a0c111a1a1a1a1a1a" +
+			"1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+	),
+}
+
 func mustDecodeHex(s string) []byte {
 	b, err := hex.DecodeString(s)
 	if err != nil {
@@ -64,73 +131,3 @@ func mustDecodeHex(s string) []byte {
 	}
 	return b
 }
-
-// windowData is the 70-byte SET WINDOW payload for a 300 DPI, full-color
-// (24-bit) single-sided scan — byte-exact copy of a confirmed-working
-// capture. Layout: header(8) = reserved0[6] + desclen=0x3e(62);
-// descriptor(42) = winid=0, xres=300, yres=300, ulx=0, uly=0,
-// width=10177 (1/1200" units), length=16769, brightness/threshold/
-// contrast=128, image_comp=5 (truecolor), bpc=8; avision tail(20) =
-// line_width=7632, line_count=4192, ... Copied verbatim from the
-// reference Python implementation — never regenerate this by hand.
-var windowData = mustDecodeHex(
-	"000000000000003e0000012c012c0000000000000000000027c1000041818080" +
-		"80050800000300000000000000000000ff14e0ff001dd0106010000000000000" +
-		"000000000000",
-)
-
-// windowDataDuplex is the same window, but for "ADF Duplex" source mode:
-// line_count doubles (0x1060 -> 0x20c0) and the avision bitset3 byte gets
-// bit 4 set (0x00 -> 0x10), enabling the ASIC's interlaced-duplex
-// front/rear readout. Confirmed by diffing a captured single-sided vs.
-// duplex SET WINDOW payload byte-for-byte — every other byte is identical
-// to windowData.
-var windowDataDuplex = mustDecodeHex(
-	"000000000000003e0000012c012c0000000000000000000027c1000041818080" +
-		"80050800000300000000000000000000ff14e0ff001dd020c010000000000000" +
-		"001000000000",
-)
-
-// colorMatrix is the 3x3 color-correction matrix (18 bytes) sent with
-// datatype 0x83, captured verbatim.
-var colorMatrix = mustDecodeHex(
-	"040000000000000004000000000000000400",
-)
-
-// gammaTable is the 512-byte gamma curve sent identically for all three
-// color channels, captured verbatim.
-var gammaTable = mustDecodeHex(
-	"000a15181c1f222427292b2d2f303233353638393b3c3d3e4041424344454748" +
-		"494a4b4c4d4e4f5051515253545556565758595a5b5b5c5d5e5e5f6061616263" +
-		"646465656667686869696a6b6c6c6d6d6e6e6f70717172727373747475767777" +
-		"787879797a7a7b7b7c7c7d7d7e7e7f7f80808181828283838484858586868787" +
-		"888889898a8a8b8b8c8c8d8d8e8e8f8f90909191929292929393949495959696" +
-		"97979898989899999a9a9b9b9c9c9d9d9d9d9e9e9f9fa0a0a1a1a1a1a2a2a3a3" +
-		"a4a4a4a4a5a5a6a6a7a7a8a8a8a8a9a9aaaaaaaaababacacadadadadaeaeafaf" +
-		"b0b0b0b0b1b1b2b2b2b2b3b3b4b4b4b4b5b5b6b6b6b6b7b7b8b8b8b8b9b9baba" +
-		"bababbbbbcbcbcbcbdbdbebebebebfbfc0c0c0c0c1c1c2c2c2c2c3c3c3c3c4c4" +
-		"c5c5c5c5c6c6c6c6c7c7c8c8c8c8c9c9c9c9cacacbcbcbcbcccccccccdcdcece" +
-		"cececfcfcfcfd0d0d1d1d1d1d2d2d2d2d3d3d3d3d4d4d4d4d5d5d6d6d6d6d7d7" +
-		"d7d7d8d8d8d8d9d9d9d9dadadbdbdbdbdcdcdcdcdddddddddededededfdfdfdf" +
-		"e0e0e0e0e1e1e1e1e2e2e3e3e3e3e4e4e4e4e5e5e5e5e6e6e6e6e7e7e7e7e8e8" +
-		"e8e8e9e9e9e9eaeaeaeaebebebebececececededededeeeeeeeeefefefeff0f0" +
-		"f0f0f1f1f1f1f1f1f2f2f2f2f3f3f3f3f4f4f4f4f5f5f5f5f6f6f6f6f7f7f7f7" +
-		"f8f8f8f8f9f9f9f9f9f9fafafafafbfbfbfbfcfcfcfcfdfdfdfdfefefefeffff",
-)
-
-// Image geometry for this window: 2544px width * 3 channels (RGB).
-const (
-	lineWidthBytes = 7632
-	channels       = 3
-	imageWidthPx   = lineWidthBytes / channels
-)
-
-// readChunkBytes is the fixed size of every image-data READ, confirmed
-// against the real capture: 122112 = 7632 * 16 scanlines. This is also
-// the duplex "stripe" size — front/rear alternate one stripe per chunk.
-const readChunkBytes = 122112
-
-// senseBufferLen matches scsiusb's standard REQUEST SENSE allocation
-// length (22 bytes) — declared here too since sense.go indexes directly
-// into a buffer of this size.
-const senseBufferLen = 0x16

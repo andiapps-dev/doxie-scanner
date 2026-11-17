@@ -11,6 +11,8 @@
     // the combine bar. The Map is for O(1) "is this selected" lookups
     // elsewhere (checkboxes); combineOrder is the source of truth for
     // display order and for the final combine request.
+    bulkMode: false,
+    bulkSelected: new Set(),
     combineSelection: new Map(),
     combineOrder: [],
     combineDragKey: null,
@@ -101,12 +103,35 @@
     }
   }
 
+  // renderFeatures shows the controls for optional server features: the
+  // auto-rotate switch and button, and "Send to Paperless".
+  function renderFeatures(data) {
+    state.autoRotateAvailable = !!data.autoRotate;
+    state.paperlessUrl = data.paperlessUrl || '';
+    el('autorotate-wrap').classList.toggle('d-none', !state.autoRotateAvailable);
+    el('job-autorotate-btn').classList.toggle('d-none', !state.autoRotateAvailable);
+    el('combine-send-btn').classList.toggle('d-none', !state.paperlessUrl);
+    if (!state.autoRotateRestored && state.autoRotateAvailable) {
+      state.autoRotateRestored = true;
+      try {
+        const saved = localStorage.getItem('doxie-autorotate');
+        if (saved !== null) el('autorotate-toggle').checked = saved === '1';
+      } catch (e) { /* per-viewer convenience only */ }
+    }
+  }
+
+  // Auto-crop is on by default; remember a switch-off for next time.
+  try {
+    if (localStorage.getItem('doxie-autocrop') === '0') el('autocrop-toggle').checked = false;
+  } catch (e) { /* per-viewer convenience only */ }
+
   async function pollScannerStatus() {
     const badge = el('scanner-badge');
     try {
       const res = await api('/api/scanner/status');
       const data = await res.json();
       state.scannerConnected = data.connected;
+      renderFeatures(data);
       if (data.connected) {
         badge.textContent = I18N.t('status.connected');
         badge.className = 'badge rounded-pill text-bg-success';
@@ -141,6 +166,10 @@
       return;
     }
     for (const job of state.jobs) {
+      if (state.bulkMode) {
+        list.appendChild(renderBulkRow(job));
+        continue;
+      }
       const isActive = job.id === state.selectedJobId;
       const item = document.createElement('button');
       item.type = 'button';
@@ -149,17 +178,129 @@
         item.classList.add('active');
         item.setAttribute('aria-current', 'true');
       }
-      const when = new Date(job.createdAt).toLocaleString();
-      const statusText = I18N.t(`status.${job.status}`);
       item.innerHTML = `
         <span>
           <div>${escapeHtml(job.name)}</div>
-          <small class="job-meta ${isActive ? '' : 'text-muted'}">${escapeHtml(when)} · ${job.pageCount} ${I18N.t('jobs.pageCountUnit')} · ${escapeHtml(statusText)}</small>
+          <small class="job-meta ${isActive ? '' : 'text-muted'}">${escapeHtml(jobMetaLine(job))}</small>
         </span>
       `;
       item.addEventListener('click', () => selectJob(job.id));
       list.appendChild(item);
     }
+  }
+
+  // ---- Bulk delete ----
+
+  // A scan that is still running can't be deleted, so it can't be ticked.
+  function bulkSelectable(job) {
+    return job.status !== 'running';
+  }
+
+  function jobMetaLine(job) {
+    const when = new Date(job.createdAt).toLocaleString();
+    return `${when} · ${job.pageCount} ${I18N.t('jobs.pageCountUnit')} · ${I18N.t(`status.${job.status}`)}`;
+  }
+
+  // In select mode each scan is a checkbox row; clicking it ticks it
+  // instead of opening the scan.
+  function renderBulkRow(job) {
+    const row = document.createElement('label');
+    row.className = 'list-group-item d-flex gap-2 align-items-start';
+    const selectable = bulkSelectable(job);
+    if (!selectable) row.title = I18N.t('bulk.runningTitle');
+    row.innerHTML = `
+      <input type="checkbox" class="form-check-input mt-1 bulk-check" ${state.bulkSelected.has(job.id) ? 'checked' : ''} ${selectable ? '' : 'disabled'}>
+      <span>
+        <div>${escapeHtml(job.name)}</div>
+        <small class="job-meta text-muted">${escapeHtml(jobMetaLine(job))}</small>
+      </span>`;
+    row.querySelector('.bulk-check').addEventListener('change', (e) => {
+      if (e.target.checked) state.bulkSelected.add(job.id);
+      else state.bulkSelected.delete(job.id);
+      updateBulkBar();
+    });
+    return row;
+  }
+
+  function updateBulkBar() {
+    const selectable = state.jobs.filter(bulkSelectable);
+    const n = state.bulkSelected.size;
+    el('bulk-count').textContent = I18N.t('bulk.count', { count: n });
+    el('bulk-delete-btn').disabled = n === 0;
+    const all = el('bulk-all');
+    all.checked = selectable.length > 0 && n === selectable.length;
+    all.indeterminate = n > 0 && n < selectable.length;
+  }
+
+  function setBulkMode(on) {
+    state.bulkMode = on;
+    state.bulkSelected = new Set();
+    el('bulk-bar').classList.toggle('d-none', !on);
+    el('bulk-toggle-btn').textContent = I18N.t(on ? 'bulk.done' : 'bulk.select');
+    renderJobList();
+    if (on) updateBulkBar();
+  }
+
+  function toggleBulkAll() {
+    if (el('bulk-all').checked) {
+      state.bulkSelected = new Set(state.jobs.filter(bulkSelectable).map((j) => j.id));
+    } else {
+      state.bulkSelected = new Set();
+    }
+    renderJobList();
+    updateBulkBar();
+  }
+
+  // forgetScans drops everything the page still holds about scans that no
+  // longer exist: their pages in the selection bar (which would otherwise
+  // be sent or combined and fail), and the open scan if it was one of them.
+  function forgetScans(gone) {
+    state.combineOrder = state.combineOrder.filter((k) => {
+      const entry = state.combineSelection.get(k);
+      if (entry && gone.has(entry.jobId)) {
+        state.combineSelection.delete(k);
+        return false;
+      }
+      return true;
+    });
+    renderCombineBar();
+    if (gone.has(state.selectedJobId)) {
+      state.selectedJobId = null;
+      state.selectedJob = null;
+      renderJobDetail();
+    }
+  }
+
+  async function bulkDelete() {
+    const chosen = state.jobs.filter((j) => state.bulkSelected.has(j.id));
+    if (chosen.length === 0) return;
+    const pages = chosen.reduce((sum, j) => sum + (j.pageCount || 0), 0);
+    let message = I18N.t('confirm.bulkDelete', { count: chosen.length, pages });
+    // Only meaningful when Paperless is set up: pages that never reached it
+    // would be gone for good.
+    const unsent = chosen.reduce((sum, j) => sum + (j.unsentPages || 0), 0);
+    if (state.paperlessUrl && unsent > 0) {
+      message += `\n\n${I18N.t('confirm.bulkUnsent', { count: unsent })}`;
+    }
+    if (!confirm(message)) return;
+
+    await withBusy(async () => {
+      const res = await api('/api/scans/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: chosen.map((j) => j.id) }),
+      });
+      const { deleted, skipped } = await res.json();
+      forgetScans(new Set(deleted));
+      state.bulkSelected = new Set(skipped.map((x) => x.id));
+      await loadJobs();
+      updateBulkBar();
+      if (skipped.length > 0) {
+        const running = skipped.filter((x) => x.reason === 'scan_running').length;
+        alert(I18N.t('alert.bulkSkipped', { count: skipped.length, running }));
+      }
+    });
+    if (state.bulkSelected.size === 0) setBulkMode(false);
   }
 
   async function selectJob(jobId) {
@@ -169,6 +310,7 @@
     state.selectedJob = await res.json();
     renderJobList();
     renderJobDetail();
+    watchSent(jobId);
   }
 
   function renderJobDetail() {
@@ -181,6 +323,7 @@
     el('job-detail-empty').classList.add('d-none');
     el('job-detail').classList.remove('d-none');
     el('job-name-input').value = job.name;
+    renderSentList(job);
 
     const grid = el('page-grid');
     grid.innerHTML = '';
@@ -208,13 +351,17 @@
     const selected = state.combineSelection.has(key);
     const src = pageImageUrl(jobId, page.index);
     const label = I18N.t('page.label', { n: page.index });
+    const badges = [];
+    if (page.autoCrop) badges.push(`✂ ${I18N.t('page.autoCroppedBadge')}`);
+    if (page.autoRotated) badges.push(`↻ ${I18N.t('page.autoRotatedBadge')}`);
+    if (sentPageSet(state.selectedJob).has(page.index)) badges.push(`✓ ${I18N.t('page.sentBadge')}`);
 
     thumbnail.innerHTML = `
       <img class="page-thumb" src="${src}" alt="${label}">
       <div class="page-thumbnail-overlay">
         <input type="checkbox" class="form-check-input combine-check" ${selected ? 'checked' : ''} title="${I18N.t('modal.selectForCombine')}">
       </div>
-      <div class="page-thumbnail-footer">${label}</div>
+      <div class="page-thumbnail-footer">${label}${badges.length ? `<div class="page-thumbnail-badges">${badges.map(escapeHtml).join(' · ')}</div>` : ''}</div>
     `;
 
     thumbnail.querySelector('.page-thumb').addEventListener('click', () => openPageViewer(jobId, page.index));
@@ -381,7 +528,7 @@
   // opening from the combine bar's thumbnails, where you're reviewing a
   // pick, not editing it.
   function openPageViewer(jobId, pageIndex, opts = {}) {
-    state.viewer = { jobId, page: pageIndex };
+    state.viewer = { jobId, page: pageIndex, viewOnly: !!opts.viewOnly };
     loadViewerImage();
     el('page-modal-view-actions').classList.toggle('d-none', !!opts.viewOnly);
     pageModal().show();
@@ -390,8 +537,53 @@
   function loadViewerImage() {
     const { jobId, page } = state.viewer;
     el('page-modal-image').src = pageImageUrl(jobId, page);
-    el('page-modal-title').textContent = I18N.t('page.label', { n: page });
     el('pm-combine-check').checked = state.combineSelection.has(combineKey(jobId, page));
+    const meta = ((state.selectedJob && state.selectedJob.id === jobId && state.selectedJob.pages) || []).find((p) => p.index === page);
+    el('pm-restore').classList.toggle('d-none', !(meta && meta.original));
+    updateViewerNav();
+  }
+
+  // The pages the viewer can step through: the open scan's, in the order
+  // shown. Opened from the combine bar's thumbnails (viewOnly), the viewer
+  // looks at one chosen page and has nothing to step through.
+  function viewerPages() {
+    const job = state.selectedJob;
+    if (!state.viewer || state.viewer.viewOnly || !job || job.id !== state.viewer.jobId) return [];
+    return job.pages || [];
+  }
+
+  // The switcher is off while cropping or reading OCR text, which belong
+  // to the page on screen.
+  function viewerBusyWithPage() {
+    return !!state.cropper || !el('page-modal-ocr-wrap').classList.contains('d-none');
+  }
+
+  function updateViewerNav() {
+    if (!state.viewer) return;
+    const { page } = state.viewer;
+    const pages = viewerPages();
+    const pos = pages.findIndex((p) => p.index === page);
+    const title = el('page-modal-title');
+    title.textContent = pos >= 0
+      ? I18N.t('modal.pageOf', { n: pos + 1, total: pages.length })
+      : I18N.t('page.label', { n: page });
+    const show = pages.length > 1 && pos >= 0;
+    const busy = viewerBusyWithPage();
+    for (const [id, target] of [['pm-prev', pos - 1], ['pm-next', pos + 1]]) {
+      const btn = el(id);
+      btn.classList.toggle('invisible', !show);
+      btn.disabled = busy || target < 0 || target >= pages.length;
+    }
+  }
+
+  function stepViewer(delta) {
+    if (!state.viewer || viewerBusyWithPage()) return;
+    const pages = viewerPages();
+    const pos = pages.findIndex((p) => p.index === state.viewer.page);
+    const next = pages[pos + delta];
+    if (pos < 0 || !next) return;
+    state.viewer.page = next.index;
+    loadViewerImage();
   }
 
   async function rotateCurrentPage(degrees) {
@@ -416,6 +608,7 @@
     // interactive canvas to match — so the modal never grows and the
     // action buttons stay in place. Do not relax any size constraint here.
     state.cropper = new Cropper(img, { viewMode: 1, autoCropArea: 1 });
+    updateViewerNav();
   }
 
   function endCropUI() {
@@ -425,6 +618,7 @@
     }
     el('page-modal-view-actions').classList.remove('d-none');
     el('page-modal-crop-actions').classList.add('d-none');
+    updateViewerNav();
   }
 
   function cancelCrop() {
@@ -462,6 +656,7 @@
     el('page-modal-ocr-actions').classList.remove('d-none');
     el('pm-ocr-text').value = '';
     el('pm-ocr-hint').textContent = I18N.t('modal.ocrExtracting');
+    updateViewerNav();
 
     await withBusy(async () => {
       try {
@@ -480,6 +675,7 @@
     el('page-modal-image-wrap').classList.remove('d-none');
     el('page-modal-ocr-wrap').classList.add('d-none');
     el('page-modal-ocr-actions').classList.add('d-none');
+    updateViewerNav();
   }
 
   // Tries the Clipboard API first, but that's only available in a
@@ -507,15 +703,42 @@
     setTimeout(() => { btn.textContent = originalLabel; }, 1500);
   }
 
+  // renumberSelection rewrites the selected pages of one scan after a
+  // deletion: newIndex maps each surviving page's old number to its new
+  // one, and a page that is gone drops out of the selection.
+  function renumberSelection(jobId, newIndex) {
+    const order = [];
+    const selection = new Map();
+    for (const key of state.combineOrder) {
+      const entry = state.combineSelection.get(key);
+      if (!entry) continue;
+      if (entry.jobId !== jobId) {
+        order.push(key);
+        selection.set(key, entry);
+      } else if (newIndex.has(entry.page)) {
+        const moved = { jobId, page: newIndex.get(entry.page) };
+        const movedKey = combineKey(jobId, moved.page);
+        order.push(movedKey);
+        selection.set(movedKey, moved);
+      }
+    }
+    state.combineOrder = order;
+    state.combineSelection = selection;
+  }
+
   async function deleteCurrentPage() {
     if (!state.viewer) return;
     const { jobId, page } = state.viewer;
     if (!confirm(I18N.t('confirm.deletePage'))) return;
     await withBusy(async () => {
+      // The server renumbers the remaining pages by their position, so the
+      // selection (kept by page number) must follow, or "send" and
+      // "combine" would pick the wrong pages afterwards.
+      const remaining = ((state.selectedJob && state.selectedJob.id === jobId && state.selectedJob.pages) || [])
+        .filter((p) => p.index !== page);
+      const newIndex = new Map(remaining.map((p, i) => [p.index, i + 1]));
       await api(`/api/scans/${jobId}/pages/${page}`, { method: 'DELETE' });
-      const key = combineKey(jobId, page);
-      state.combineSelection.delete(key);
-      state.combineOrder = state.combineOrder.filter((k) => k !== key);
+      renumberSelection(jobId, newIndex);
       renderCombineBar();
       pageModal().hide();
       await selectJob(jobId);
@@ -563,17 +786,202 @@
     await downloadCombinedPDF(pages, job.name, el('job-export-format').value);
   }
 
+  // ---- Auto-rotate ----
+
+  async function autoRotateScan() {
+    const job = state.selectedJob;
+    if (!job) return;
+    await withBusy(async () => {
+      const before = (job.pages || []).map((p) => p.autoRotated || 0);
+      const res = await api(`/api/scans/${job.id}/auto-rotate`, { method: 'POST' });
+      const updated = await res.json();
+      const turned = (updated.pages || []).filter((p, i) => (p.autoRotated || 0) !== before[i]).length;
+      await selectJob(job.id);
+      alert(I18N.t(turned ? 'jobDetail.autoRotated' : 'jobDetail.noneRotated', { n: turned }));
+    });
+  }
+
+  async function autoCropScan() {
+    const job = state.selectedJob;
+    if (!job) return;
+    await withBusy(async () => {
+      const res = await api(`/api/scans/${job.id}/auto-crop`, { method: 'POST' });
+      const updated = await res.json();
+      const cropped = (updated.pages || []).filter((p, i) => !!p.autoCrop !== !!(job.pages[i] && job.pages[i].autoCrop)).length;
+      await selectJob(job.id);
+      alert(I18N.t(cropped ? 'jobDetail.autoCropped' : 'jobDetail.noneCropped', { n: cropped }));
+    });
+  }
+
+  // Puts the page on screen back exactly as scanned (only offered for a
+  // page auto-crop changed, which is the one whose original is kept).
+  async function restoreCurrentPage() {
+    if (!state.viewer) return;
+    const { jobId, page } = state.viewer;
+    await withBusy(async () => {
+      await api(`/api/scans/${jobId}/pages/${page}/restore`, { method: 'POST' });
+      await selectJob(jobId);
+      loadViewerImage();
+    });
+  }
+
+  // ---- Sent to Paperless ----
+
+  // sentPageSet is the page numbers of a scan already in a Paperless
+  // document that has not failed.
+  function sentPageSet(job) {
+    const set = new Set();
+    for (const d of (job && job.sent) || []) {
+      if (d.status !== 'failed') (d.pages || []).forEach((n) => set.add(n));
+    }
+    return set;
+  }
+
+  function sentIsPending(job) {
+    return ((job && job.sent) || []).some((d) => d.status === 'queued' || d.status === 'processing');
+  }
+
+  function renderSentList(job) {
+    const box = el('job-sent');
+    const sent = job.sent || [];
+    box.classList.toggle('d-none', sent.length === 0);
+    if (sent.length === 0) { box.innerHTML = ''; return; }
+    const rows = sent.map((d) => {
+      let status = I18N.t(`sent.${d.status}`);
+      if (d.status === 'done' && d.documentId && state.paperlessUrl) {
+        const href = `${state.paperlessUrl.replace(/\/+$/, '')}/documents/${d.documentId}/details`;
+        status += ` · <a href="${escapeHtml(href)}" target="_blank" rel="noopener">${I18N.t('sent.open')}</a>`;
+      } else if (d.status === 'failed' && d.error) {
+        status += `: ${escapeHtml(d.error)}`;
+      }
+      const cls = d.status === 'failed' ? 'text-danger' : d.status === 'done' ? 'text-success' : 'text-muted';
+      return `<li><strong>${escapeHtml(d.title)}</strong> <span class="text-muted">(${I18N.t('sent.pages', { pages: (d.pages || []).join(', ') })})</span> <span class="${cls}">${status}</span></li>`;
+    });
+    box.innerHTML = `<div class="small"><div class="fw-semibold">${I18N.t('sent.heading')}</div><ul class="mb-0 ps-3">${rows.join('')}</ul></div>`;
+  }
+
+  // While an upload is still with Paperless, ask how it is doing every few
+  // seconds and show the answer; stops once nothing is pending or another
+  // scan is opened.
+  function watchSent(jobId) {
+    if (state.sentTimer) clearTimeout(state.sentTimer);
+    state.sentTimer = null;
+    if (!state.paperlessUrl || !state.selectedJob || state.selectedJob.id !== jobId || !sentIsPending(state.selectedJob)) return;
+    state.sentTimer = setTimeout(async () => {
+      try {
+        const res = await api(`/api/scans/${jobId}/sent/refresh`, { method: 'POST' });
+        const job = await res.json();
+        if (state.selectedJob && state.selectedJob.id === jobId) {
+          state.selectedJob = job;
+          renderJobDetail();
+        }
+      } catch (e) {
+        console.warn(e.message);
+      }
+      watchSent(jobId);
+    }, 3000);
+  }
+
+  function selectedPagesInOrder() {
+    return state.combineOrder
+      .map((key) => state.combineSelection.get(key))
+      .filter(Boolean)
+      .map((p) => ({ jobId: p.jobId, page: p.page }));
+  }
+
+  function fillSelect(sel, items, placeholder) {
+    sel.innerHTML = '';
+    if (placeholder) {
+      const o = document.createElement('option');
+      o.value = '0';
+      o.textContent = placeholder;
+      sel.appendChild(o);
+    }
+    for (const it of items) {
+      const o = document.createElement('option');
+      o.value = String(it.id);
+      o.textContent = it.name;
+      sel.appendChild(o);
+    }
+  }
+
+  async function openSendDialog() {
+    const pages = selectedPagesInOrder();
+    if (pages.length === 0) return;
+    el('send-error').classList.add('d-none');
+    el('send-summary').textContent = I18N.t('send.summary', { count: pages.length });
+    el('send-title').value = el('combine-title').value.trim();
+    el('send-created').value = '';
+    try {
+      await withBusy(async () => {
+        const res = await api('/api/paperless/metadata');
+        const m = await res.json();
+        const none = I18N.t('send.letPaperless');
+        fillSelect(el('send-correspondent'), m.correspondents || [], none);
+        fillSelect(el('send-doctype'), m.documentTypes || [], none);
+        fillSelect(el('send-tags'), m.tags || [], '');
+      });
+    } catch (e) {
+      alert(`${I18N.t('send.loadFailed')} ${e.message}`);
+      return;
+    }
+    bootstrap.Modal.getOrCreateInstance(el('send-modal')).show();
+  }
+
+  async function submitSend() {
+    const pages = selectedPagesInOrder();
+    const tags = Array.from(el('send-tags').selectedOptions).map((o) => Number(o.value));
+    const body = {
+      pages,
+      title: el('send-title').value.trim(),
+      created: el('send-created').value,
+      correspondent: Number(el('send-correspondent').value) || 0,
+      documentType: Number(el('send-doctype').value) || 0,
+      tags,
+    };
+    const btn = el('send-submit');
+    btn.disabled = true;
+    btn.textContent = I18N.t('send.sending');
+    try {
+      await api('/api/paperless/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      const err = el('send-error');
+      err.textContent = e.message;
+      err.classList.remove('d-none');
+      return;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = I18N.t('send.submit');
+    }
+    bootstrap.Modal.getOrCreateInstance(el('send-modal')).hide();
+    state.combineSelection.clear();
+    state.combineOrder = [];
+    renderCombineBar();
+    await loadJobs();
+    if (state.selectedJobId) await selectJob(state.selectedJobId);
+  }
+
   // ---- Start scan + progress polling ----
 
   async function startScan() {
     const duplex = el('duplex-toggle').checked;
+    const autoRotate = state.autoRotateAvailable && el('autorotate-toggle').checked;
+    const autoCrop = el('autocrop-toggle').checked;
+    try {
+      localStorage.setItem('doxie-autorotate', autoRotate ? '1' : '0');
+      localStorage.setItem('doxie-autocrop', autoCrop ? '1' : '0');
+    } catch (e) { /* per-viewer convenience only */ }
     state.scanning = true;
     updateStartButtonState();
     try {
       const res = await api('/api/scans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ duplex }),
+        body: JSON.stringify({ duplex, autoRotate, autoCrop }),
       });
       const data = await res.json();
       watchScanProgress(data.jobId);
@@ -584,28 +992,63 @@
     }
   }
 
-  function updateScanProgressText(count) {
-    el('scan-progress').textContent = I18N.t('scan.progressText', { count });
+  // What the scan is doing, in words: the step the server reports (so a
+  // scan that has stopped feeding but is still working never looks
+  // stuck), then how many pages exist so far.
+  function scanProgressText(job) {
+    const stage = job.stage
+      ? I18N.t(`scan.stage.${job.stage}`, { n: job.stageDone || 0, total: job.stageTotal || 0 })
+      : I18N.t('scan.stage.starting');
+    const pages = job.pagesScanned ?? job.pageCount ?? 0;
+    return pages > 0 ? `${stage} · ${I18N.t('scan.pagesSoFar', { count: pages })}` : stage;
+  }
+
+  // showScanProgress fills the progress block. fraction is 0..1 for a step
+  // that knows how far along it is (turning pages upright), or null for
+  // one that doesn't, which shows a moving bar instead.
+  function showScanProgress(text, fraction) {
+    el('scan-progress').classList.remove('d-none');
+    el('scan-progress-text').textContent = text;
+    const bar = el('scan-progress-bar');
+    const known = fraction != null;
+    bar.classList.toggle('progress-bar-striped', !known);
+    bar.classList.toggle('progress-bar-animated', !known);
+    bar.style.width = known ? `${Math.round(fraction * 100)}%` : '100%';
+  }
+
+  // Page thumbnails are the full stored images, so on a slow link they
+  // can take a while after the scan itself is done; wait for them (but not
+  // forever) so the progress stays up until the scan can really be seen.
+  async function waitForThumbnails(maxMs = 30000) {
+    const imgs = Array.from(document.querySelectorAll('#page-grid img.page-thumb'));
+    const loaded = Promise.allSettled(imgs.map((img) => (img.decode ? img.decode() : Promise.resolve())));
+    await Promise.race([loaded, new Promise((resolve) => setTimeout(resolve, maxMs))]);
   }
 
   function watchScanProgress(jobId) {
-    el('scan-progress').classList.remove('d-none');
-    updateScanProgressText(0);
+    showScanProgress(I18N.t('scan.stage.starting'), null);
     if (state.scanPollTimer) clearInterval(state.scanPollTimer);
     state.scanPollTimer = setInterval(async () => {
       const res = await api(`/api/scans/${jobId}`);
       const job = await res.json();
-      updateScanProgressText(job.pagesScanned ?? job.pageCount ?? 0);
-      if (job.status !== 'running') {
-        clearInterval(state.scanPollTimer);
-        state.scanPollTimer = null;
-        el('scan-progress').classList.add('d-none');
-        state.scanning = false;
-        updateStartButtonState();
+      if (job.status === 'running') {
+        const counted = (job.stage === 'rotating' || job.stage === 'cropping') && job.stageTotal > 0;
+        showScanProgress(scanProgressText(job), counted ? (job.stageDone - 1) / job.stageTotal : null);
+        return;
+      }
+      clearInterval(state.scanPollTimer);
+      state.scanPollTimer = null;
+      state.scanning = false;
+      updateStartButtonState();
+      showScanProgress(I18N.t('scan.stage.loading'), null);
+      try {
         await loadJobs();
         await selectJob(jobId);
+        await waitForThumbnails();
+      } finally {
+        el('scan-progress').classList.add('d-none');
       }
-    }, 1000);
+    }, 500);
   }
 
   // ---- Rename / delete job ----
@@ -625,10 +1068,9 @@
     if (!state.selectedJobId) return;
     if (!confirm(I18N.t('confirm.deleteScan'))) return;
     await withBusy(async () => {
-      await api(`/api/scans/${state.selectedJobId}`, { method: 'DELETE' });
-      state.selectedJobId = null;
-      state.selectedJob = null;
-      renderJobDetail();
+      const id = state.selectedJobId;
+      await api(`/api/scans/${id}`, { method: 'DELETE' });
+      forgetScans(new Set([id]));
       await loadJobs();
     });
   }
@@ -642,6 +1084,26 @@
   // ---- Wire up ----
 
   el('start-scan-btn').addEventListener('click', startScan);
+  el('bulk-toggle-btn').addEventListener('click', () => setBulkMode(!state.bulkMode));
+  el('bulk-all').addEventListener('change', toggleBulkAll);
+  el('bulk-delete-btn').addEventListener('click', bulkDelete);
+  el('job-autorotate-btn').addEventListener('click', autoRotateScan);
+  el('job-autocrop-btn').addEventListener('click', autoCropScan);
+  el('pm-restore').addEventListener('click', restoreCurrentPage);
+  el('combine-send-btn').addEventListener('click', openSendDialog);
+  el('send-submit').addEventListener('click', submitSend);
+  el('pm-prev').setAttribute('aria-label', I18N.t('modal.prevPage'));
+  el('pm-next').setAttribute('aria-label', I18N.t('modal.nextPage'));
+  el('pm-prev').addEventListener('click', () => stepViewer(-1));
+  el('pm-next').addEventListener('click', () => stepViewer(1));
+  // Arrow keys step through the pages while the viewer is open, unless
+  // the person is typing (the crop box and OCR text area keep their keys).
+  document.addEventListener('keydown', (e) => {
+    if (!el('page-modal').classList.contains('show')) return;
+    if (e.target.closest && e.target.closest('input, textarea, select')) return;
+    if (e.key === 'ArrowLeft') { stepViewer(-1); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { stepViewer(1); e.preventDefault(); }
+  });
   el('job-rename-btn').addEventListener('click', renameJob);
   el('job-delete-btn').addEventListener('click', deleteJob);
   el('job-export-pdf-btn').addEventListener('click', exportWholeScan);

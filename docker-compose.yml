@@ -4,7 +4,14 @@ services:
     build: .
     ports:
       - "8080:8080"
+    env_file:
+      # Optional: DOXIE_PAPERLESS_URL and DOXIE_PAPERLESS_TOKEN turn on
+      # "Send to Paperless" (see .env.example). Skipped when there's no .env.
+      - path: .env
+        required: false
     volumes:
+      # Scan names use the local time, so share the host's time zone.
+      - /etc/localtime:/etc/localtime:ro
       # REQUIRED: without this bind mount, scanned pages live only in
       # the container's writable layer and are lost the moment the
       # container is removed or recreated.

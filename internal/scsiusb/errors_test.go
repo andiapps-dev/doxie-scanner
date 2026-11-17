@@ -44,10 +44,3 @@ func TestCheckConditionError(t *testing.T) {
 		t.Errorf("unexpected message: %q", err.Error())
 	}
 }
-
-func TestScanCompleteError(t *testing.T) {
-	err := &ScanComplete{Reason: "ADF paper end"}
-	if !strings.Contains(err.Error(), "ADF paper end") {
-		t.Errorf("unexpected message: %q", err.Error())
-	}
-}

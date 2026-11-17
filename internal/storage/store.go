@@ -2,10 +2,12 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // Store persists scan jobs under a single root directory. Every method
@@ -26,6 +28,16 @@ func New(root string) *Store {
 
 // Root returns the store's root directory.
 func (s *Store) Root() string { return s.root }
+
+// ErrInvalidID is returned for a job id that isn't a single plain folder
+// name. Ids reach the store from request bodies and URLs, and each one is
+// joined into a filesystem path, so one with a separator or ".." in it
+// must never get that far.
+var ErrInvalidID = errors.New("storage: invalid job id")
+
+func validJobID(id string) bool {
+	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, "/\\\x00")
+}
 
 func (s *Store) jobsDir() string         { return filepath.Join(s.root, "jobs") }
 func (s *Store) jobDir(id string) string { return filepath.Join(s.jobsDir(), id) }
@@ -55,6 +67,9 @@ func (s *Store) CheckWritable() error {
 // CreateJob creates the on-disk directory structure for a new job and
 // writes its initial metadata.
 func (s *Store) CreateJob(meta JobMeta) error {
+	if !validJobID(meta.ID) {
+		return ErrInvalidID
+	}
 	if err := os.MkdirAll(s.pagesDir(meta.ID), 0o755); err != nil {
 		return fmt.Errorf("storage: create job %q: %w", meta.ID, err)
 	}
@@ -63,6 +78,9 @@ func (s *Store) CreateJob(meta JobMeta) error {
 
 // SaveMeta writes (or overwrites) a job's meta.json.
 func (s *Store) SaveMeta(meta JobMeta) error {
+	if !validJobID(meta.ID) {
+		return ErrInvalidID
+	}
 	data, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return fmt.Errorf("storage: marshal metadata for job %q: %w", meta.ID, err)
@@ -75,6 +93,9 @@ func (s *Store) SaveMeta(meta JobMeta) error {
 
 // LoadMeta reads a job's meta.json.
 func (s *Store) LoadMeta(id string) (JobMeta, error) {
+	if !validJobID(id) {
+		return JobMeta{}, ErrInvalidID
+	}
 	data, err := os.ReadFile(s.metaPath(id))
 	if err != nil {
 		return JobMeta{}, fmt.Errorf("storage: read metadata for job %q: %w", id, err)
@@ -116,6 +137,9 @@ func (s *Store) ListJobs() ([]JobMeta, error) {
 
 // SavePageFile writes one page image file (front or back) for a job.
 func (s *Store) SavePageFile(jobID, filename string, data []byte) error {
+	if !validJobID(jobID) {
+		return ErrInvalidID
+	}
 	path := filepath.Join(s.pagesDir(jobID), filename)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("storage: write page file %q for job %q: %w", filename, jobID, err)
@@ -125,6 +149,9 @@ func (s *Store) SavePageFile(jobID, filename string, data []byte) error {
 
 // LoadPageFile reads one page image file for a job.
 func (s *Store) LoadPageFile(jobID, filename string) ([]byte, error) {
+	if !validJobID(jobID) {
+		return nil, ErrInvalidID
+	}
 	path := filepath.Join(s.pagesDir(jobID), filename)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -136,7 +163,8 @@ func (s *Store) LoadPageFile(jobID, filename string) ([]byte, error) {
 // PageFilePath returns the absolute on-disk path of one page image file
 // for a job, for callers that need to hand a real path to an external
 // tool (e.g. internal/ocr, which shells out to unpaper/tesseract)
-// instead of reading the file's bytes into memory themselves.
+// instead of reading the file's bytes into memory themselves. The caller
+// must already have loaded the job (LoadMeta), which is what vets its id.
 func (s *Store) PageFilePath(jobID, filename string) string {
 	return filepath.Join(s.pagesDir(jobID), filename)
 }
@@ -145,6 +173,9 @@ func (s *Store) PageFilePath(jobID, filename string) string {
 // are renumbered after a deletion). A cheap metadata-only operation
 // since it never touches the file's contents.
 func (s *Store) RenamePageFile(jobID, oldFilename, newFilename string) error {
+	if !validJobID(jobID) {
+		return ErrInvalidID
+	}
 	oldPath := filepath.Join(s.pagesDir(jobID), oldFilename)
 	newPath := filepath.Join(s.pagesDir(jobID), newFilename)
 	if err := os.Rename(oldPath, newPath); err != nil {
@@ -155,6 +186,9 @@ func (s *Store) RenamePageFile(jobID, oldFilename, newFilename string) error {
 
 // DeletePageFile removes one page image file for a job.
 func (s *Store) DeletePageFile(jobID, filename string) error {
+	if !validJobID(jobID) {
+		return ErrInvalidID
+	}
 	path := filepath.Join(s.pagesDir(jobID), filename)
 	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("storage: delete page file %q for job %q: %w", filename, jobID, err)
@@ -164,6 +198,9 @@ func (s *Store) DeletePageFile(jobID, filename string) error {
 
 // DeleteJob removes a job's entire directory (metadata and all pages).
 func (s *Store) DeleteJob(id string) error {
+	if !validJobID(id) {
+		return ErrInvalidID
+	}
 	if err := os.RemoveAll(s.jobDir(id)); err != nil {
 		return fmt.Errorf("storage: delete job %q: %w", id, err)
 	}

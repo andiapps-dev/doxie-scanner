@@ -12,114 +12,65 @@ const (
 	defaultRetryDelay = 200 * time.Millisecond
 )
 
-// command sends a CDB (with optional outData/inLen) via scsiusb.Command
-// and classifies any resulting check-condition sense data using this
-// device's own sense meanings. A sense_key of 0 is treated as an ordinary
-// success (the data scsiusb already read back is returned as-is); any
-// other classification (ScanComplete or a real ScsiError) is returned as
-// this call's error.
-func command(dev scsiusb.BulkDevice, cdb, outData []byte, inLen int) ([]byte, error) {
-	data, err := scsiusb.Command(dev, cdb, outData, inLen, defaultRetries, defaultRetryDelay)
+// command runs one exchange and hands back any check condition as a
+// parsed sense block instead of an error, since a check condition is how
+// the scanner signals the normal end of a side.
+func command(dev scsiusb.BulkDevice, cdb, out []byte, inLen, retries int) ([]byte, *sense, error) {
+	data, err := scsiusb.Command12(dev, cdb, out, inLen, retries, defaultRetryDelay)
 	if err == nil {
-		return data, nil
+		return data, nil, nil
 	}
-
 	var cc *scsiusb.CheckConditionError
-	if errors.As(err, &cc) {
-		if serr := classifySense(cc.Sense); serr != nil {
-			return nil, serr
-		}
-		return data, nil
+	if !errors.As(err, &cc) {
+		return nil, nil, err
 	}
-	return nil, err
+	s, perr := parseSense(cc.Sense)
+	if perr != nil {
+		return nil, nil, perr
+	}
+	return data, &s, nil
 }
 
-func inquiry(dev scsiusb.BulkDevice) ([]byte, error) {
-	cdb := []byte{opInquiry, 0x00, 0x00, 0x00, 0x60, 0x00}
-	return command(dev, cdb, nil, 0x60)
+func mustSucceed(dev scsiusb.BulkDevice, cdb, out []byte, inLen int) ([]byte, error) {
+	data, s, err := command(dev, cdb, out, inLen, defaultRetries)
+	if err != nil {
+		return nil, err
+	}
+	if s != nil {
+		return nil, s.err()
+	}
+	return data, nil
 }
 
-func mediaCheck(dev scsiusb.BulkDevice) ([]byte, error) {
-	cdb := []byte{opMediaCheck, 0x00, 0x00, 0x00, 0x01, 0x00}
-	return command(dev, cdb, nil, 1)
+func send(dev scsiusb.BulkDevice, dataType byte, payload []byte) error {
+	_, err := mustSucceed(dev, scsiusb.CDB12(opSend, dataType, len(payload), 0), payload, 0)
+	return err
 }
 
-// hasPaper reports whether the ADF currently has a sheet ready to scan:
-// bit 0 of the MEDIA_CHECK response byte. This is exactly what
-// avision.c's sane_start() checks before every page, and how
-// `scanimage --batch` knows when a multi-page batch is done.
+func read(dev scsiusb.BulkDevice, dataType byte, n int) ([]byte, error) {
+	return mustSucceed(dev, scsiusb.CDB12(opRead, dataType, n, 0), nil, n)
+}
+
+func control(dev scsiusb.BulkDevice, op, flags byte) error {
+	_, err := mustSucceed(dev, scsiusb.CDB12(op, 0, 0, flags), nil, 0)
+	return err
+}
+
 func hasPaper(dev scsiusb.BulkDevice) (bool, error) {
-	data, err := mediaCheck(dev)
+	data, err := mustSucceed(dev, scsiusb.CDB12(opSensor, 0, sensorReplyLn, 0), nil, sensorReplyLn)
 	if err != nil {
 		return false, err
 	}
-	return len(data) > 0 && data[0]&0x01 != 0, nil
+	return len(data) == sensorReplyLn && data[4]&0x01 != 0, nil
 }
 
-func setWindow(dev scsiusb.BulkDevice, duplex bool) error {
-	wd := windowData
-	if duplex {
-		wd = windowDataDuplex
-	}
-	cdb := []byte{opSetWindow, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, byte(len(wd)), 0x00}
-	_, err := command(dev, cdb, wd, 0)
+func setWindow(dev scsiusb.BulkDevice, w window) error {
+	payload := w.bytes()
+	_, err := mustSucceed(dev, scsiusb.CDB12(opSetWindow, 0, len(payload), 0), payload, 0)
 	return err
 }
 
-func readCalibrationFormat(dev scsiusb.BulkDevice) ([]byte, error) {
-	cdb := []byte{
-		opRead, 0x00, datatypeGetCalibrationFmt, 0x00,
-		byte(dataDQ >> 8), byte(dataDQ & 0xff),
-		0x00, 0x00, 0x20,
-	}
-	return command(dev, cdb, nil, 0x20)
-}
-
-func sendColorMatrix(dev scsiusb.BulkDevice) error {
-	cdb := []byte{opSend, 0x00, datatype3x3ColorMatrix, 0x00, 0x00, 0x00, 0x00, 0x00, byte(len(colorMatrix))}
-	_, err := command(dev, cdb, colorMatrix, 0)
-	return err
-}
-
-func sendGammaChannel(dev scsiusb.BulkDevice, channel byte) error {
-	cdb := []byte{opSend, 0x00, datatypeDownloadGamma, 0x00, 0x00, channel, 0x00, 0x02, 0x00}
-	_, err := command(dev, cdb, gammaTable, 0)
-	return err
-}
-
-func sendAttachTruncate(dev scsiusb.BulkDevice, datatypeCode byte) error {
-	cdb := []byte{opSend, 0x00, datatypeCode, 0x00, 0x00, 0x01, 0x00, 0x00, 0x02}
-	_, err := command(dev, cdb, []byte{0x00, 0x00}, 0)
-	return err
-}
-
-func reserveUnit(dev scsiusb.BulkDevice) error {
-	_, err := command(dev, []byte{opReserveUnit}, nil, 0)
-	return err
-}
-
-func releaseUnit(dev scsiusb.BulkDevice, which byte) error {
-	cdb := []byte{opReleaseUnit, 0x00, 0x00, 0x00, 0x00, which}
-	_, err := command(dev, cdb, nil, 0)
-	return err
-}
-
-func startScan(dev scsiusb.BulkDevice) error {
-	cdb := []byte{opScan, 0x00, 0x00, 0x00, 0x01, 0x80}
-	_, err := command(dev, cdb, nil, 0)
-	return err
-}
-
-func requestSenseCmd(dev scsiusb.BulkDevice) ([]byte, error) {
-	cdb := []byte{opRequestSense, 0x00, 0x00, 0x00, senseBufferLen}
-	return command(dev, cdb, nil, senseBufferLen)
-}
-
-func readImageChunk(dev scsiusb.BulkDevice) ([]byte, error) {
-	cdb := []byte{
-		opRead, 0x00, datatypeReadImageData, 0x00,
-		byte(dataDQ >> 8), byte(dataDQ & 0xff),
-		byte(readChunkBytes >> 16), byte((readChunkBytes >> 8) & 0xff), byte(readChunkBytes & 0xff),
-	}
-	return command(dev, cdb, nil, readChunkBytes)
+// readImageChunk is never retried: re-sending a READ would skip a chunk.
+func readImageChunk(dev scsiusb.BulkDevice) ([]byte, *sense, error) {
+	return command(dev, scsiusb.CDB12(opRead, dtImageData, readChunkBytes, 0), nil, readChunkBytes, 1)
 }

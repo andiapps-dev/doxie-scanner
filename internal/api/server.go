@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/andiapps-dev/doxie-scanner/internal/driver"
+	"github.com/andiapps-dev/doxie-scanner/internal/paperless"
 	"github.com/andiapps-dev/doxie-scanner/internal/scanjobs"
 	"github.com/andiapps-dev/doxie-scanner/internal/storage"
 )
@@ -20,6 +21,16 @@ type Server struct {
 	version string
 	ocrLang string
 	mux     *http.ServeMux
+
+	paperless *paperless.Client // nil: sending to Paperless not set up
+}
+
+// Option configures an optional feature of a Server.
+type Option func(*Server)
+
+// WithPaperless turns on sending pages to the given Paperless-ngx.
+func WithPaperless(c *paperless.Client) Option {
+	return func(s *Server) { s.paperless = c }
 }
 
 // NewServer builds a Server and wires its full route table. staticFS
@@ -29,14 +40,18 @@ type Server struct {
 // "dev" otherwise) — surfaced read-only via GET /api/version so a
 // running container can be identified for support purposes. ocrLang is
 // the tesseract language code "Extract Text" uses (see Config.OCRLang).
-func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, staticFS fs.FS, version, ocrLang string) *Server {
+func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, staticFS fs.FS, version, ocrLang string, opts ...Option) *Server {
 	s := &Server{drv: drv, jobs: jobs, store: store, version: version, ocrLang: ocrLang}
+	for _, opt := range opts {
+		opt(s)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/version", s.handleVersion)
 	mux.HandleFunc("GET /api/scanner/status", s.handleScannerStatus)
 
 	mux.HandleFunc("POST /api/scans", s.handleStartScan)
+	mux.HandleFunc("POST /api/scans/bulk-delete", s.handleBulkDeleteScans)
 	mux.HandleFunc("GET /api/scans", s.handleListScans)
 	mux.HandleFunc("GET /api/scans/{id}", s.handleGetScan)
 	mux.HandleFunc("PATCH /api/scans/{id}", s.handleRenameScan)
@@ -51,6 +66,14 @@ func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, 
 	mux.HandleFunc("GET /api/scans/{id}/pages/{n}/ocr", s.handleExtractText)
 
 	mux.HandleFunc("POST /api/export/combine", s.handleCombine)
+
+	mux.HandleFunc("POST /api/scans/{id}/auto-rotate", s.handleAutoRotate)
+	mux.HandleFunc("POST /api/scans/{id}/auto-crop", s.handleAutoCrop)
+	mux.HandleFunc("POST /api/scans/{id}/pages/{n}/restore", s.handleRestorePage)
+
+	mux.HandleFunc("GET /api/paperless/metadata", s.handlePaperlessMetadata)
+	mux.HandleFunc("POST /api/paperless/send", s.handlePaperlessSend)
+	mux.HandleFunc("POST /api/scans/{id}/sent/refresh", s.handleRefreshSent)
 
 	if staticFS != nil {
 		mux.Handle("/", http.FileServer(http.FS(staticFS)))

@@ -18,6 +18,9 @@ docker run -d \
 	-p "${PORT}:8080" \
 	-v "$(realpath "$DATA_DIR")":/data \
 	-v /dev/bus/usb:/dev/bus/usb \
+	-v /etc/localtime:/etc/localtime:ro \
+	${DOXIE_PAPERLESS_URL:+-e DOXIE_PAPERLESS_URL} \
+	${DOXIE_PAPERLESS_TOKEN:+-e DOXIE_PAPERLESS_TOKEN} \
 	--device-cgroup-rule='c 189:* rmw' \
 	"$IMAGE"
 

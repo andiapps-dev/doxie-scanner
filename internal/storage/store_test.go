@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -350,5 +351,55 @@ func TestStore_Root(t *testing.T) {
 	s := New("/some/path")
 	if s.Root() != "/some/path" {
 		t.Errorf("got %q", s.Root())
+	}
+}
+
+func TestStore_RefusesJobIDsThatAreNotAPlainFolderName(t *testing.T) {
+	root := t.TempDir()
+	store := New(root)
+	// A real folder beside the jobs folder that a path-joined id could reach.
+	victim := filepath.Join(root, "victim")
+	if err := os.MkdirAll(victim, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(victim, "meta.json"), []byte(`{"id":"x"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "jobs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, id := range []string{"", ".", "..", "../victim", "a/b", `a\b`, "a\x00b", "../../etc"} {
+		if _, err := store.LoadMeta(id); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("LoadMeta(%q) = %v, want ErrInvalidID", id, err)
+		}
+		if err := store.DeleteJob(id); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("DeleteJob(%q) = %v, want ErrInvalidID", id, err)
+		}
+		if err := store.CreateJob(JobMeta{ID: id}); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("CreateJob(%q) = %v, want ErrInvalidID", id, err)
+		}
+		if err := store.SaveMeta(JobMeta{ID: id}); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("SaveMeta(%q) = %v, want ErrInvalidID", id, err)
+		}
+		if err := store.SavePageFile(id, "p.png", nil); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("SavePageFile(%q) = %v, want ErrInvalidID", id, err)
+		}
+		if _, err := store.LoadPageFile(id, "p.png"); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("LoadPageFile(%q) = %v, want ErrInvalidID", id, err)
+		}
+		if err := store.RenamePageFile(id, "a", "b"); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("RenamePageFile(%q) = %v, want ErrInvalidID", id, err)
+		}
+		if err := store.DeletePageFile(id, "p.png"); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("DeletePageFile(%q) = %v, want ErrInvalidID", id, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(victim, "meta.json")); err != nil {
+		t.Errorf("the folder outside jobs/ was touched: %v", err)
+	}
+	// Ordinary ids still work.
+	if err := store.CreateJob(JobMeta{ID: "20261117-150216-4ba5"}); err != nil {
+		t.Errorf("a normal id was refused: %v", err)
 	}
 }

@@ -68,7 +68,35 @@ func (f *fakeBulkDevice) queueReadErr(err error) {
 	f.reads = append(f.reads, fakeRead{err: err})
 }
 
-// queueGoodStatus appends the single-byte "status good" response.
+// queueGoodStatus appends a 3-byte "status good" response.
 func (f *fakeBulkDevice) queueGoodStatus() {
-	f.queueRead([]byte{StatusGood})
+	f.queueRead([]byte{0x00, 0x00, StatusGood})
+}
+
+// commandSenderDevice records CDBs delivered out of band, the way the real
+// device receives them as vendor control requests.
+type commandSenderDevice struct {
+	*fakeBulkDevice
+	sent [][]byte
+}
+
+func (c *commandSenderDevice) SendCommand(cdb []byte) error {
+	c.sent = append(c.sent, append([]byte(nil), cdb...))
+	return nil
+}
+
+// flakyWriteDevice fails the listed (1-indexed) Write calls, then
+// delegates to the wrapped fake.
+type flakyWriteDevice struct {
+	*fakeBulkDevice
+	failOn map[int]bool
+	calls  int
+}
+
+func (f *flakyWriteDevice) Write(p []byte) (int, error) {
+	f.calls++
+	if f.failOn[f.calls] {
+		return 0, errors.New("simulated write failure")
+	}
+	return f.fakeBulkDevice.Write(p)
 }

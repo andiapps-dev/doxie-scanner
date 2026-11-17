@@ -31,8 +31,24 @@
                 <input class="form-check-input" type="checkbox" id="duplex-toggle" checked>
                 <label class="form-check-label" for="duplex-toggle" data-i18n="scan.duplexLabel">Duplex (both sides)</label>
               </div>
+              <div id="autocrop-wrap" class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="autocrop-toggle" checked>
+                <label class="form-check-label" for="autocrop-toggle" data-i18n="scan.autoCropLabel" data-i18n-title="scan.autoCropTitle" title="Trim photos, cards and receipts to the sheet and straighten them once the scan finishes">Auto-crop &amp; straighten</label>
+              </div>
+              <div id="autorotate-wrap" class="form-check form-switch mb-0 d-none">
+                <input class="form-check-input" type="checkbox" id="autorotate-toggle" checked>
+                <label class="form-check-label" for="autorotate-toggle" data-i18n="scan.autoRotateLabel" data-i18n-title="scan.autoRotateTitle" title="Turn each page upright from its text once the scan finishes">Auto-rotate pages</label>
+              </div>
               <button id="start-scan-btn" type="button" class="btn btn-primary" disabled data-i18n="scan.startButton" data-i18n-title="scan.waitingTitle" title="Waiting for scanner connection…">Start scan</button>
-              <div id="scan-progress" class="text-muted small d-none"></div>
+              <div id="scan-progress" class="d-none" role="status" aria-live="polite">
+                <div class="d-flex align-items-center gap-2 small text-muted mb-1">
+                  <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                  <span id="scan-progress-text"></span>
+                </div>
+                <div class="progress" style="height:6px">
+                  <div id="scan-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -42,6 +58,17 @@
         <div class="card">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span data-i18n="jobs.heading">Scans</span>
+            <button id="bulk-toggle-btn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="bulk.select">Select</button>
+          </div>
+          <div id="bulk-bar" class="px-3 py-2 border-bottom d-none">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="bulk-all">
+                <label class="form-check-label" for="bulk-all" data-i18n="bulk.selectAll">Select all</label>
+              </div>
+              <span id="bulk-count" class="text-muted small"></span>
+              <button id="bulk-delete-btn" type="button" class="btn btn-sm btn-danger ms-auto" disabled data-i18n="bulk.delete">Delete selected</button>
+            </div>
           </div>
           <div id="job-list" class="list-group list-group-flush"></div>
         </div>
@@ -60,11 +87,14 @@
                 <option value="jpeg" selected data-i18n="common.formatJpeg">JPEG (smaller)</option>
                 <option value="png" data-i18n="common.formatPng">PNG (lossless)</option>
               </select>
+              <button id="job-autocrop-btn" class="btn btn-sm btn-outline-secondary" data-i18n="jobDetail.autoCrop" data-i18n-title="jobDetail.autoCropTitle" title="Trim photos, cards and receipts to the sheet and straighten them">Auto-crop pages</button>
+              <button id="job-autorotate-btn" class="btn btn-sm btn-outline-secondary d-none" data-i18n="jobDetail.autoRotate" data-i18n-title="jobDetail.autoRotateTitle" title="Turn every page upright from its text">Auto-rotate pages</button>
               <button id="job-export-pdf-btn" class="btn btn-sm btn-outline-success" data-i18n="jobDetail.exportPdf">Export scan as PDF</button>
               <button id="job-delete-btn" class="btn btn-sm btn-outline-danger" data-i18n="jobDetail.deleteScan">Delete scan</button>
             </div>
           </div>
           <p class="text-muted small mb-2" data-i18n="jobDetail.help">Duplex scans number each side as its own page. Drag a thumbnail to reorder it. Click a thumbnail to view, rotate, crop, export, or delete it.</p>
+          <div id="job-sent" class="mb-3 d-none"></div>
           <div id="page-grid"></div>
         </div>
       </div>
@@ -82,6 +112,7 @@
           <option value="png" data-i18n="common.formatPng">PNG (lossless)</option>
         </select>
         <button id="combine-btn" class="btn btn-success btn-sm" data-i18n="combine.button">Combine into PDF</button>
+        <button id="combine-send-btn" class="btn btn-primary btn-sm d-none" data-i18n="combine.sendButton">Send to Paperless…</button>
         <button id="combine-clear-btn" class="btn btn-outline-secondary btn-sm" data-i18n="combine.clear">Clear selection</button>
       </div>
     </div>
@@ -91,8 +122,10 @@
     <div class="modal-dialog modal-xl modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="page-modal-title">Page</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="pm-prev" data-i18n-title="modal.prevPage" title="Previous page" aria-label="Previous page">&#8249;</button>
+          <h5 class="modal-title flex-grow-1 text-center" id="page-modal-title">Page</h5>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="pm-next" data-i18n-title="modal.nextPage" title="Next page" aria-label="Next page">&#8250;</button>
+          <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body text-center">
           <div class="page-modal-image-wrap" id="page-modal-image-wrap">
@@ -121,6 +154,7 @@
               <li><a class="dropdown-item pm-export-link" href="#" data-format="pdf" data-i18n="common.formatPdf">PDF</a></li>
             </ul>
           </div>
+          <button type="button" class="btn btn-outline-secondary d-none" id="pm-restore" data-i18n="modal.restoreOriginal" data-i18n-title="modal.restoreOriginalTitle" title="Put this page back exactly as it was scanned">Restore original</button>
           <button type="button" class="btn btn-outline-danger" id="pm-delete" data-i18n="modal.deletePage">Delete page</button>
         </div>
         <div class="modal-footer d-none justify-content-center gap-2" id="page-modal-crop-actions">
@@ -130,6 +164,46 @@
         <div class="modal-footer d-none justify-content-center gap-2" id="page-modal-ocr-actions">
           <button type="button" class="btn btn-secondary" id="pm-ocr-back" data-i18n="modal.ocrBack">Back</button>
           <button type="button" class="btn btn-primary" id="pm-ocr-copy" data-i18n="modal.ocrCopy">Copy text</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="send-modal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-i18n="send.heading">Send to Paperless</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small" id="send-summary"></p>
+          <div class="mb-2">
+            <label class="form-label small mb-1" for="send-title" data-i18n="send.title">Title</label>
+            <input id="send-title" type="text" class="form-control form-control-sm">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1" for="send-created" data-i18n="send.date">Date</label>
+            <input id="send-created" type="date" class="form-control form-control-sm">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1" for="send-correspondent" data-i18n="send.correspondent">Correspondent</label>
+            <select id="send-correspondent" class="form-select form-select-sm"></select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1" for="send-doctype" data-i18n="send.documentType">Document type</label>
+            <select id="send-doctype" class="form-select form-select-sm"></select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1" for="send-tags" data-i18n="send.tags">Tags</label>
+            <select id="send-tags" class="form-select form-select-sm" multiple size="6"></select>
+          </div>
+          <p class="text-muted small mb-0" data-i18n="send.blankHint">Anything left blank is up to Paperless's own matching rules.</p>
+          <p class="text-danger small mt-2 mb-0 d-none" id="send-error"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="send.cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="send-submit" data-i18n="send.submit">Send</button>
         </div>
       </div>
     </div>

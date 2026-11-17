@@ -130,30 +130,10 @@ func (s *Server) handleCombine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	images := make([]image.Image, 0, len(req.Pages))
-	for _, ref := range req.Pages {
-		meta, err := s.store.LoadMeta(ref.JobID)
-		if err != nil {
-			writeError(w, http.StatusNotFound, "not_found", fmt.Sprintf("job %q not found", ref.JobID))
-			return
-		}
-		pageMeta, found := findPage(meta, ref.Page)
-		if !found {
-			writeError(w, http.StatusNotFound, "not_found", fmt.Sprintf("page %d not found in job %q", ref.Page, ref.JobID))
-			return
-		}
-
-		data, err := s.store.LoadPageFile(ref.JobID, pageMeta.File)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
-			return
-		}
-		img, err := png.Decode(bytes.NewReader(data))
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
-			return
-		}
-		images = append(images, img)
+	images, lerr := s.loadPageImages(req.Pages)
+	if lerr != nil {
+		writeError(w, lerr.status, lerr.code, lerr.message)
+		return
 	}
 
 	pdfBytes, err := pdfexport.CombinePagesPDF(images, format)
@@ -169,4 +149,39 @@ func (s *Server) handleCombine(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", title+".pdf"))
 	w.Write(pdfBytes)
+}
+
+// loadError is a failure to load a selected page, with the HTTP response
+// that describes it.
+type loadError struct {
+	status  int
+	code    string
+	message string
+}
+
+// loadPageImages decodes the stored image of each referenced page, in the
+// order given. It is how a combined PDF and a Paperless upload read the
+// same selection.
+func (s *Server) loadPageImages(refs []combinePageRef) ([]image.Image, *loadError) {
+	images := make([]image.Image, 0, len(refs))
+	for _, ref := range refs {
+		meta, err := s.store.LoadMeta(ref.JobID)
+		if err != nil {
+			return nil, &loadError{http.StatusNotFound, "not_found", fmt.Sprintf("job %q not found", ref.JobID)}
+		}
+		pageMeta, found := findPage(meta, ref.Page)
+		if !found {
+			return nil, &loadError{http.StatusNotFound, "not_found", fmt.Sprintf("page %d not found in job %q", ref.Page, ref.JobID)}
+		}
+		data, err := s.store.LoadPageFile(ref.JobID, pageMeta.File)
+		if err != nil {
+			return nil, &loadError{http.StatusInternalServerError, "internal_error", err.Error()}
+		}
+		img, err := png.Decode(bytes.NewReader(data))
+		if err != nil {
+			return nil, &loadError{http.StatusInternalServerError, "internal_error", err.Error()}
+		}
+		images = append(images, img)
+	}
+	return images, nil
 }

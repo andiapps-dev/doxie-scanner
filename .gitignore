@@ -3,3 +3,6 @@
 coverage.out
 coverage.filtered.out
 coverage.html
+
+# Paperless URL and token
+.env

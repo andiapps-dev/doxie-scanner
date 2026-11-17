@@ -23,7 +23,21 @@
     "startButton": "Start scan",
     "waitingTitle": "Waiting for scanner connection…",
     "inProgressTitle": "A scan is already in progress",
-    "progressText": "Scanning… {count} page(s) so far"
+    "autoRotateLabel": "Auto-rotate pages",
+    "autoRotateTitle": "Turn each page upright from its text once the scan finishes",
+    "stage": {
+      "starting": "Starting the scan…",
+      "checking": "Checking for paper…",
+      "scanning": "Scanning sheet {n}…",
+      "saving": "Saving the pages…",
+      "releasing": "Finishing up with the scanner…",
+      "rotating": "Turning pages upright: page {n} of {total}…",
+      "loading": "Loading the pages…",
+      "cropping": "Trimming pages to the sheet: page {n} of {total}…"
+    },
+    "pagesSoFar": "{count} page(s) so far",
+    "autoCropLabel": "Auto-crop & straighten",
+    "autoCropTitle": "Trim photos, cards and receipts to the sheet and straighten them once the scan finishes"
   },
   "jobs": {
     "heading": "Scans",
@@ -37,7 +51,15 @@
     "exportPdf": "Export scan as PDF",
     "deleteScan": "Delete scan",
     "help": "Duplex scans number each side as its own page. Drag a thumbnail to reorder it. Click a thumbnail to view, rotate, crop, export, or delete it.",
-    "noPages": "No pages yet."
+    "noPages": "No pages yet.",
+    "autoRotate": "Auto-rotate pages",
+    "autoRotateTitle": "Turn every page upright from its text",
+    "autoRotated": "Turned {n} page(s) upright.",
+    "noneRotated": "No pages needed turning, or none had enough text to tell.",
+    "autoCrop": "Auto-crop pages",
+    "autoCropTitle": "Trim photos, cards and receipts to the sheet and straighten them",
+    "autoCropped": "Trimmed {n} page(s) to the sheet.",
+    "noneCropped": "No pages needed cropping: pages that fill the scan are left as they are."
   },
   "combine": {
     "selected": "{count} page(s) selected — drag thumbnails to reorder",
@@ -46,10 +68,14 @@
     "button": "Combine into PDF",
     "clear": "Clear selection",
     "thumbAlt": "Page {n} of combined document",
-    "removeTitle": "Remove from selection"
+    "removeTitle": "Remove from selection",
+    "sendButton": "Send to Paperless…"
   },
   "page": {
-    "label": "Page {n}"
+    "label": "Page {n}",
+    "autoRotatedBadge": "auto-rotated",
+    "sentBadge": "in Paperless",
+    "autoCroppedBadge": "auto-cropped"
   },
   "modal": {
     "imageAlt": "Page",
@@ -69,14 +95,22 @@
     "ocrCopied": "Copied!",
     "ocrSelected": "Selected — press Ctrl+C",
     "ocrExtracting": "Extracting text…",
-    "ocrNoText": "No text recognized on this page."
+    "ocrNoText": "No text recognized on this page.",
+    "prevPage": "Previous page",
+    "nextPage": "Next page",
+    "pageOf": "Page {n} of {total}",
+    "restoreOriginal": "Restore original",
+    "restoreOriginalTitle": "Put this page back exactly as it was scanned"
   },
   "confirm": {
     "deletePage": "Delete this page?",
-    "deleteScan": "Delete this scan and all of its pages?"
+    "deleteScan": "Delete this scan and all of its pages?",
+    "bulkDelete": "Delete {count} scan(s) and their {pages} page(s)? This can't be undone.",
+    "bulkUnsent": "{count} of those page(s) were never sent to Paperless."
   },
   "alert": {
-    "noPages": "This scan has no pages yet."
+    "noPages": "This scan has no pages yet.",
+    "bulkSkipped": "{count} scan(s) were kept ({running} still scanning). Try again when they finish."
   },
   "busy": {
     "working": "Working…"
@@ -89,6 +123,45 @@
     "scsi_error": "A scanner communication error occurred.",
     "ocr_unavailable": "Text extraction isn't available on this server.",
     "internal_error": "Something went wrong.",
-    "generic": "Something went wrong."
+    "generic": "Something went wrong.",
+    "paperless_not_configured": "Paperless isn't set up on this server.",
+    "paperless_unauthorized": "Paperless rejected the API token.",
+    "paperless_unreachable": "Could not reach Paperless.",
+    "auto_rotate_unavailable": "Auto-rotate needs tesseract with the osd language data installed.",
+    "scan_running": "That scan is still running.",
+    "scan_in_progress": "Wait for the running scan to finish first.",
+    "no_original": "This page has no original to restore."
+  },
+  "send": {
+    "heading": "Send to Paperless",
+    "summary": "{count} page(s) from the selection, in the order shown, become one document.",
+    "title": "Title",
+    "date": "Date",
+    "correspondent": "Correspondent",
+    "documentType": "Document type",
+    "tags": "Tags",
+    "blankHint": "Anything left blank is up to Paperless's own matching rules.",
+    "letPaperless": "— let Paperless decide —",
+    "cancel": "Cancel",
+    "submit": "Send",
+    "sending": "Sending…",
+    "loadFailed": "Could not load the lists from Paperless."
+  },
+  "sent": {
+    "heading": "Sent to Paperless",
+    "pages": "page(s) {pages}",
+    "queued": "Waiting for Paperless…",
+    "processing": "Paperless is processing it…",
+    "done": "Filed in Paperless",
+    "failed": "Paperless could not file it",
+    "open": "Open"
+  },
+  "bulk": {
+    "select": "Select",
+    "done": "Done",
+    "selectAll": "Select all",
+    "count": "{count} selected",
+    "delete": "Delete selected",
+    "runningTitle": "Still scanning: it can be deleted once it finishes"
   }
 }

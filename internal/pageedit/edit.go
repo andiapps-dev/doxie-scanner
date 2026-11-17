@@ -1,4 +1,6 @@
-package doxiedx400
+// Package pageedit holds the two manual page edits the API offers, rotating
+// by a quarter turn and cropping to a rectangle, as pure image functions.
+package pageedit
 
 import (
 	"fmt"
@@ -20,7 +22,7 @@ func Rotate(img image.Image, degrees int) (*image.NRGBA, error) {
 	case 270:
 		return imaging.Rotate90(img), nil
 	default:
-		return nil, fmt.Errorf("doxiedx400: unsupported rotation %d degrees (must be 90, 180, or 270)", degrees)
+		return nil, fmt.Errorf("pageedit: unsupported rotation %d degrees (must be 90, 180, or 270)", degrees)
 	}
 }
 
@@ -30,7 +32,7 @@ func Rotate(img image.Image, degrees int) (*image.NRGBA, error) {
 func Crop(img image.Image, rect image.Rectangle) (*image.NRGBA, error) {
 	clamped := rect.Intersect(img.Bounds())
 	if clamped.Empty() {
-		return nil, fmt.Errorf("doxiedx400: crop rectangle %v does not intersect image bounds %v", rect, img.Bounds())
+		return nil, fmt.Errorf("pageedit: crop rectangle %v does not intersect image bounds %v", rect, img.Bounds())
 	}
 	return imaging.Crop(img, clamped), nil
 }

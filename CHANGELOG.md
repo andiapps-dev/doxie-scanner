@@ -5,6 +5,109 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/) — tags look
 like `v1.2.0`, and each one gets its own section below.
 
+## [Unreleased]
+
+### Added
+
+- **Send to Paperless-ngx.** Tick pages (from one scan or several) in the
+  selection bar and send them as one document with a title, date,
+  correspondent, document type and tags chosen from Paperless's own
+  lists. Each scan lists what was sent from it, follows the upload until
+  Paperless has filed it, links to the document and marks the sent
+  pages. Turned on by `DOXIE_PAPERLESS_URL` and `DOXIE_PAPERLESS_TOKEN`
+  (see `.env.example`). The Paperless client is from the
+  jasonlearst/doxie-scanner fork.
+- **Auto-crop & straighten**, on by default, with a switch on the
+  new-scan card and an *Auto-crop pages* button on a finished scan
+  (`POST /api/scans/{id}/auto-crop`). The scanner always reads its full
+  width, so a photo, card or receipt comes out as a small picture in gray
+  backing; each such page is trimmed to its sheet and straightened if
+  tilted 0.5° or more. It acts only when at least 20% of the scan is
+  backing. Run on 45 real scans, the sheet finder (from the fork) cropped
+  all 19 photos and cards correctly or safely, but was confidently wrong
+  on one letter page (a made-up 3.4° tilt and a crop through its footer);
+  every letter page it found anything on had at most 11% to remove,
+  against 26% or more on photos. A page it changes keeps its as-scanned
+  image, is marked "auto-cropped", and *Restore original*
+  (`POST /api/scans/{id}/pages/{n}/restore`) puts it back. When only one
+  edge of a sheet is found, that side is trimmed and the other's backing
+  is left.
+- **Auto-rotate**, on by default where tesseract's `osd` data is
+  installed (it is in the image), with a switch on the new-scan card and
+  an *Auto-rotate pages* button on a finished scan
+  (`POST /api/scans/{id}/auto-rotate`). Pages are turned upright from the
+  text on them, so a sheet that fed in sideways or upside down comes out
+  readable. It runs after the scanner has been released, never between
+  sheets. A page with too little text to tell is left alone, and a turned
+  page is marked so it can be turned back by hand.
+- **Bulk delete.** *Select* above the scans list turns each scan into a
+  checkbox row with *Select all* and a count; *Delete selected* asks
+  first, saying how many scans and pages are going and, with Paperless
+  set up, how many pages were never sent to it. Running scans can't be
+  ticked. `POST /api/scans/bulk-delete` does the same through the API and
+  reports which scans it deleted and which it skipped, and why.
+  `GET /api/scans` now gives each scan's `unsentPages`.
+- **Live scan progress.** A running scan says what it is doing instead of
+  only counting pages: checking for paper, scanning sheet N, saving the
+  pages, finishing up with the scanner, trimming pages to the sheet,
+  turning pages upright (page N of M, with a progress bar) and loading the
+  pages. It stays up until the scan's thumbnails have loaded, so the wait
+  after the scanner stops is no longer unexplained. `GET /api/scans/{id}`
+  reports `stage`, `stageDone` and `stageTotal` while a scan runs.
+- **Page switcher.** The page viewer has previous/next arrows (and the
+  left/right arrow keys) to step through the open scan's pages, with a
+  "Page 2 of 4" counter.
+- Scanner problems are reported in plain words: no paper in the feeder, a
+  paper jam, the cover open, two sheets fed at once, or a sheet stopped
+  partway through.
+
+### Changed
+
+- **The scanner driver is now the one for Doxie's own protocol**, adapted
+  from the jasonlearst/doxie-scanner fork (credited in the README): the
+  vendor's 12-byte command set, with the scanner JPEG-encoding each side
+  on the device, and one scan job held open across a whole stack so
+  sheets feed back to back. Its commands and payloads come from USB
+  captures of Doxie's own drivers. It is still registered as
+  `doxie-dx400`, so `DOXIE_DRIVER` is unchanged, and scans stored by
+  earlier versions open as before. In this project's own scans, the old
+  driver sometimes gave the first scan of a session a magenta cast (4 of
+  the 8 sessions measured, and never a later scan in a session); none of
+  the 5 scans made with the new driver so far has.
+- The web app starts scans with auto-crop and auto-rotate on. They are
+  options on `POST /api/scans` (`autoCrop`, `autoRotate`) that stay off
+  unless the request asks, so existing scripts keep getting pages exactly
+  as scanned.
+- A scan that is still running can't be edited (rename, reorder, delete a
+  page, rotate, crop, restore): the request gets a 409. The scan is
+  written back when it finishes, after the post-scan steps, so an edit
+  made meanwhile would have been lost.
+- `docker-compose.yml` and `run.sh` mount `/etc/localtime`, so scans are
+  named in the host's local time rather than UTC.
+
+- Dependencies: `golang.org/x/image` 0.46.0 to 0.48.0, and the release and
+  CI workflows use `docker/setup-buildx-action` v4 and
+  `docker/login-action` v4 (the updates Dependabot proposed, none of them a
+  security advisory).
+
+### Removed
+
+- The original driver, which used the generic SCSI-2 scanner command set
+  and read raw pixels, and the 10-byte command transport that went with
+  it. They are in the git history.
+
+### Fixed
+
+- Deleting a scan that was still running removed its folder out from
+  under the scanner. `DELETE /api/scans/{id}` now refuses it with a 409.
+- Pages of a deleted scan stayed in the selection bar, where sending or
+  combining them would fail. They now leave it.
+- Deleting a page renumbers the pages after it, but the "sent to
+  Paperless" records and the selection bar kept the old numbers, so a
+  later send or combine could pick the wrong pages. Both now follow the
+  renumbering (including after pages were reordered), and a page's kept
+  original goes with it.
+
 ## [1.0.8] - 2026-09-14
 
 ### Changed

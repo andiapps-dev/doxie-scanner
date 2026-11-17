@@ -7,7 +7,7 @@ import (
 	"image/png"
 	"net/http"
 
-	"github.com/andiapps-dev/doxie-scanner/internal/doxiedx400"
+	"github.com/andiapps-dev/doxie-scanner/internal/pageedit"
 	"github.com/andiapps-dev/doxie-scanner/internal/storage"
 )
 
@@ -43,6 +43,9 @@ func (s *Server) resolvePageFile(w http.ResponseWriter, r *http.Request) (jobID 
 // result back over the same file, and updates the stored width/height if
 // they changed (e.g. a 90/270 degree rotation).
 func (s *Server) applyEdit(w http.ResponseWriter, r *http.Request, edit func(image.Image) (*image.NRGBA, error)) {
+	if s.refuseWhileScanning(w, r.PathValue("id")) {
+		return
+	}
 	jobID, meta, pageMeta, filename, ok := s.resolvePageFile(w, r)
 	if !ok {
 		return
@@ -102,7 +105,7 @@ func (s *Server) handleRotatePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.applyEdit(w, r, func(img image.Image) (*image.NRGBA, error) {
-		return doxiedx400.Rotate(img, req.Degrees)
+		return pageedit.Rotate(img, req.Degrees)
 	})
 }
 
@@ -123,6 +126,6 @@ func (s *Server) handleCropPage(w http.ResponseWriter, r *http.Request) {
 	}
 	rect := image.Rect(req.X, req.Y, req.X+req.Width, req.Y+req.Height)
 	s.applyEdit(w, r, func(img image.Image) (*image.NRGBA, error) {
-		return doxiedx400.Crop(img, rect)
+		return pageedit.Crop(img, rect)
 	})
 }

@@ -42,3 +42,17 @@ func TestLoadConfig_Overrides(t *testing.T) {
 		t.Errorf("OCRLang = %q", cfg.OCRLang)
 	}
 }
+
+func TestLoadConfig_Paperless(t *testing.T) {
+	cfg := loadConfig(fakeGetenv(nil))
+	if cfg.PaperlessURL != "" || cfg.PaperlessToken != "" {
+		t.Errorf("Paperless should be off by default, got %+v", cfg)
+	}
+	cfg = loadConfig(fakeGetenv(map[string]string{
+		"DOXIE_PAPERLESS_URL":   "  http://paperless.lan:8000 \n",
+		"DOXIE_PAPERLESS_TOKEN": " tok\n",
+	}))
+	if cfg.PaperlessURL != "http://paperless.lan:8000" || cfg.PaperlessToken != "tok" {
+		t.Errorf("values not trimmed: %+v", cfg)
+	}
+}

@@ -1,5 +1,7 @@
 package main
 
+import "strings"
+
 // Config holds every environment-driven setting this application reads.
 // Kept as a plain struct populated by loadConfig (rather than reading
 // env vars scattered through main.go) so config parsing itself is
@@ -20,6 +22,10 @@ type Config struct {
 	// tesseract-ocr-data-<lang> (Alpine) / tesseract-ocr-<lang> (Debian)
 	// package to also be installed in the image.
 	OCRLang string
+	// PaperlessURL and PaperlessToken turn on "Send to Paperless"; both
+	// must be set.
+	PaperlessURL   string
+	PaperlessToken string
 }
 
 const (
@@ -50,5 +56,7 @@ func loadConfig(getenv func(string) string) Config {
 	if v := getenv("DOXIE_OCR_LANG"); v != "" {
 		cfg.OCRLang = v
 	}
+	cfg.PaperlessURL = strings.TrimSpace(getenv("DOXIE_PAPERLESS_URL"))
+	cfg.PaperlessToken = strings.TrimSpace(getenv("DOXIE_PAPERLESS_TOKEN"))
 	return cfg
 }

@@ -1,17 +1,19 @@
 # Doxie Scanner
 
-A standalone, linux focused, self-hosted web app for driving a **Doxie Pro DX400** document scanner. Talks to the scanner directly over raw SCSI-over-USB-bulk — no
-SANE, no `scanimage`, no vendor drivers — with a simple web UI for
-scanning, reviewing, rotating/cropping, and exporting pages as PNG, JPEG,
-or PDF.
+A standalone, self-hosted web app for a **Doxie Pro DX400** document
+scanner. It talks to the scanner directly over USB, so there is no SANE,
+no `scanimage` and no vendor software to install. Scan from your browser,
+let the app trim and straighten photos and cards and turn pages upright,
+review and fix pages, then download PDFs or send them to
+[Paperless-ngx](https://docs.paperless-ngx.com/).
 
 Ships as a single Docker image with the frontend baked into the binary.
 
-**Linux only, and specifically the Doxie Pro DX400** — this isn't a
-general Avision/Doxie driver. It talks to one exact device (USB VID:PID
-`2740:000c`) via the raw USB device nodes under `/dev/bus/usb`, which is
-a Linux-specific interface; it will not run on macOS or Windows, and it
-will not recognize any other scanner, including other Doxie models.
+**Specifically the Doxie Pro DX400, and Linux is the supported platform**
+— this isn't a general Avision/Doxie driver. It talks to one exact device
+(USB VID:PID `2740:000c`) and will not recognize any other scanner,
+including other Doxie models. The Docker image is Linux (amd64) and reaches
+the scanner through the USB device nodes under `/dev/bus/usb`.
 
 > Not affiliated with, endorsed by, or sponsored by Doxie, Apparent Corp.,
 > or Avision. "Doxie" and "Doxie Pro" are trademarks of their respective
@@ -21,27 +23,31 @@ will not recognize any other scanner, including other Doxie models.
 
 ## How this was built
 
-This driver implements the standard **SCSI-2 scanner command set**
-(INQUIRY, SET WINDOW, READ, SEND, SCAN, RESERVE/RELEASE UNIT) that the
-device speaks over plain USB bulk transfers — the same generic protocol
-family SANE's `avision` backend uses, not any Doxie/Avision-proprietary
-transport.
+The scanner driver speaks **the protocol Doxie's own driver uses**: a
+12-byte command set (an Avision-family SCSI dialect carried over USB) in
+which the scanner JPEG-encodes each side itself. The byte sequences and
+payloads were captured from Doxie's own Windows and macOS drivers talking
+to real hardware, and implemented from scratch against that observed wire
+data in the fork
+[jasonlearst/doxie-scanner](https://github.com/jasonlearst/doxie-scanner)
+(MIT). This project adopted that driver in place of its own first one: see
+[Credits](#credits) for exactly what came from where. No vendor or SANE
+source code is copied anywhere in this repository; reimplementing a
+protocol from observed traffic is the same well-established basis projects
+like Samba and Wine rely on.
 
-The exact byte sequences this hardware expects were captured from a
-`usbmon` packet trace of a real scan and reimplemented from scratch
-against that observed wire data — no vendor or SANE source code is
-copied anywhere in this repository. A locally-patched build of SANE's
-(GPL-2.0) `avision` backend was used once, purely as a diagnostic tool to
-get this specific device talking to SANE long enough to capture its
-traffic; that patched build was never distributed and isn't part of this
-project. Reverse-engineering a protocol from observed traffic and
-independently reimplementing it is the same well-established basis
-projects like Samba, Wine, and ReactOS rely on — this repo contains only
-that independent reimplementation, licensed under MIT (see LICENSE).
+The project's first driver (1.x) used the generic SCSI-2 scanner command
+set instead and read raw pixels. It was replaced because the vendor
+protocol is the one Doxie's software exercises: it is faster (the scanner
+compresses on the device) and it keeps one scan job open across a stack, so
+sheets feed back to back. The old driver is in the git history.
 
 ## Features
 
-- Start single or multi-page (ADF) scans, simplex or duplex, from the browser
+- Start single or multi-page (ADF) scans, simplex or duplex (duplex is the
+  default), from the browser. The scanner JPEG-encodes each side on the
+  device, and one scan job stays open for a whole stack so sheets feed
+  without a pause between them
 - "Start scan" is only enabled once the scanner is actually reachable — a
   live "connected / not connected" status badge backs it, no page refresh needed
 - **Duplex scans number each side as its own independent page.** One
@@ -52,10 +58,48 @@ that independent reimplementation, licensed under MIT (see LICENSE).
   doesn't become a page, rather than producing an empty one to delete later
 - Click any page to open it in a full-size viewer with rotate (left/right
   90° — click repeatedly for 180°/270°), crop, export, delete, and OCR
-  actions all in one place
+  actions all in one place. Scanner problems come back in plain words:
+  no paper in the feeder, a paper jam, the cover open, two sheets fed at
+  once, or a sheet stopped partway through
 - **Extract Text** runs OCR on a page and shows the result in a
   copy-pasteable box — automatically corrects a crooked scan first, since
   even a few degrees of skew measurably hurts recognition accuracy
+- **Live progress**: while a scan runs, and after the scanner has stopped
+  feeding, the new-scan card says what it is doing — checking for paper,
+  scanning sheet 2, saving the pages, finishing up with the scanner,
+  trimming pages to the sheet, turning pages upright (page 3 of 4, with a filling bar) — and keeps
+  showing it until the pages have loaded, so the pause before the result
+  never looks like a hang
+- **Page switcher**: in the page viewer, the arrows in its header (or the
+  left/right arrow keys) step to the previous or next page of the scan
+  without closing it, with a "Page 2 of 4" counter
+- **Auto-crop & straighten** (on by default): the scanner always reads
+  its full 8.5 inch width, so a photo, card or receipt comes out as a
+  small picture floating in gray backing. Auto-crop trims it to the sheet
+  and straightens it if it fed in tilted (0.5° or more). It acts only
+  when at least 20% of the scan is backing, so an ordinary page that
+  fills the scan is never touched; that rule came from running the
+  detector on real scans, where it was sometimes confidently wrong on
+  full pages. A page it changes keeps its as-scanned image, shown as
+  "auto-cropped", and *Restore original* in the page viewer puts it back.
+  Switch it off per scan (new-scan card; the choice is remembered) or run
+  it on any finished scan from its header. The sheet finder is from the
+  jasonlearst/doxie-scanner fork (`internal/pageimage`). When it finds only
+  one edge of a sheet it trims that side and leaves the other's backing:
+  incomplete, but it never cuts into the sheet
+- **Auto-rotate** (on by default where tesseract's `osd` data is
+  installed): turns each page upright from the text on it, so a sheet
+  that fed in sideways or upside down comes out readable. Switch it off
+  per scan (new-scan card) or run it on any finished scan from its
+  header; a page with too little text to tell (a blank back, a photo) is
+  left alone. Pages it turned are marked "auto-rotated" and can be
+  turned back with the normal rotate buttons
+- **Send to Paperless-ngx**: tick the pages you want, from one scan or
+  several, and send them as one document with a title, date,
+  correspondent, document type and tags chosen from your Paperless lists
+  (anything left blank is up to Paperless's own rules). Each scan shows
+  what was sent from it, follows the upload until Paperless has filed
+  it, and links to the filed document
 - Drag and drop to reorder pages within a scan
 - Export a single page as PNG, JPEG, or PDF; export a whole scan as one
   combined PDF with one click; or hand-pick pages from **any number of
@@ -70,7 +114,7 @@ that independent reimplementation, licensed under MIT (see LICENSE).
 
 ## Requirements
 
-- Docker (or a Go 1.26+ toolchain with a C compiler and libusb-1.0 dev
+- Docker (or a Go 1.27+ toolchain with a C compiler and libusb-1.0 dev
   headers, if running outside Docker)
 - A Doxie Pro DX400 scanner connected over USB
 - **A persistent volume mounted at `/data`.** This is not optional: scan
@@ -145,6 +189,12 @@ lsusb -d 2740:000c
 - **Scans list** (left panel): shows every scan with its creation
   date/time and page count, newest first. The selected scan is
   highlighted. Click a scan to view its pages.
+- **Deleting several scans**: *Select* above the list turns each scan
+  into a checkbox row, with *Select all* and a live count. *Delete
+  selected* asks first, saying how many scans and pages it is about to
+  remove, and, when Paperless is set up, how many of those pages were
+  never sent to it. A scan that is still running can't be ticked or
+  deleted. Pages of deleted scans also leave the selection bar.
 - **Page grid**: one tile per page — a duplex sheet's front and back are
   two separate tiles, tiled to fill the available width before wrapping
   to the next row. Drag a tile to reorder it — page numbers/URLs don't
@@ -155,6 +205,16 @@ lsusb -d 2740:000c
   resize itself mid-edit. A spinner covers the screen while an action
   that round-trips through the server (rotate, crop, export, combine) is
   in flight.
+- **Send to Paperless**: the same selection bar has a *Send to
+  Paperless…* button (shown when Paperless is set up, see Configuration).
+  It opens a form for the title, date, correspondent, document type and
+  tags, and sends the picked pages, in the order shown, as one PDF. Send
+  only some of a scan's pages, or pick pages from several scans, to make
+  one document; send the rest later as another. Under the scan's header,
+  a *Sent to Paperless* list shows each document's pages and progress
+  (waiting, processing, filed, or why it failed), and the sent pages
+  carry an "in Paperless" mark. A failed send leaves no record, so you
+  can simply try again.
 - **Combine into PDF**: check "select for combine" on any pages (in the
   grid or the viewer) — across as many different scans as you like — and
   a bar at the bottom shows a thumbnail of every page you've picked so
@@ -180,12 +240,13 @@ All endpoints are JSON except where noted. No authentication.
 | Method & path | Purpose |
 |---|---|
 | `GET /api/version` | `{"version": "..."}` — the git tag this build was released from, or `"dev"` for a local/untagged build. |
-| `GET /api/scanner/status` | `{connected, vid, pid, driver, error?}` — always 200; "not connected" is a normal poll result, not an HTTP error. |
-| `POST /api/scans` | `{"duplex": bool}` → starts a scan job. `202 {jobId, status}`. `409` if a scan is already running. |
-| `GET /api/scans` | List jobs, newest first. |
-| `GET /api/scans/{id}` | Full job detail + pages; while running, also includes live `pagesScanned` progress. |
+| `GET /api/scanner/status` | `{connected, vid, pid, driver, autoRotate, autoCrop, paperlessUrl?, error?}` — always 200; "not connected" is a normal poll result, not an HTTP error. `autoRotate` says whether auto-rotate is available (`autoCrop` is always true); `paperlessUrl` is set when sending to Paperless is configured. |
+| `POST /api/scans` | `{"duplex": bool, "autoRotate": bool, "autoCrop": bool}` → starts a scan job. `autoCrop` (trim photos/cards to the sheet and straighten them) and `autoRotate` (turn each page upright; ignored when unavailable) are **off unless you send `true`**, so a script that sends only `{"duplex": true}` keeps getting pages exactly as scanned. The web app sends both as `true` unless you switch them off. `202 {jobId, status}`. `409` if a scan is already running. |
+| `GET /api/scans` | List jobs, newest first. Each carries `unsentPages`: how many of its pages are in no Paperless document that went through. |
+| `GET /api/scans/{id}` | Full job detail + pages; while running, also includes live `pagesScanned` progress and what the scan is doing: `stage` (`checking`, `scanning`, `saving`, `releasing`, `cropping` or `rotating`) with `stageDone` / `stageTotal` where it has a count (the sheet number while scanning, the page of the total while turning pages upright). |
 | `PATCH /api/scans/{id}` | `{"name": "..."}` — rename a scan. |
-| `DELETE /api/scans/{id}` | Delete a scan and all its pages. |
+| `DELETE /api/scans/{id}` | Delete a scan and all its pages. `409` while the scan is still running (as does any edit to a running scan: rename, reorder, delete or rotate/crop a page, restore, auto-crop, auto-rotate). |
+| `POST /api/scans/bulk-delete` | `{"ids": ["...", ...]}` → `{deleted: [ids], skipped: [{id, reason}]}`. Always 200 once the request is valid: a scan that is already gone (`not_found`), still running (`scan_running`) or fails on disk (`internal_error`) is reported in `skipped` and doesn't stop the rest. A repeated id counts once. `400` for an empty list. |
 | `GET /api/scans/{id}/pages/{n}` | Raw page PNG. |
 | `DELETE /api/scans/{id}/pages/{n}` | Delete one page. |
 | `PATCH /api/scans/{id}/pages/order` | `{"order": [3,1,2]}` — reorders a scan's pages (a permutation of its existing page numbers). Page numbers, URLs, and filenames don't change — only their position. |
@@ -193,6 +254,12 @@ All endpoints are JSON except where noted. No authentication.
 | `POST /api/scans/{id}/pages/{n}/crop` | `{"x","y","width","height"}` — in place. |
 | `GET /api/scans/{id}/pages/{n}/export?format=png\|jpg\|pdf` | Single-page export, downloaded as an attachment. |
 | `GET /api/scans/{id}/pages/{n}/ocr` | `{"text": "..."}` — runs OCR (with automatic deskew) and returns the recognized text. Not cached; regenerated on every call. |
+| `POST /api/scans/{id}/auto-crop` | Trims every page of a finished scan that has at least 20% backing to its sheet, straightening it if tilted by 0.5° or more. A changed page gets `autoCrop` (what was done) and `original` (the kept as-scanned file) in its metadata. Returns the updated scan. `409` while the scan runs. |
+| `POST /api/scans/{id}/pages/{n}/restore` | Puts a page back exactly as scanned (undoing an automatic crop and anything done to the page since) and removes the kept copy. `404` if the page has no original, i.e. it was never changed automatically. |
+| `POST /api/scans/{id}/auto-rotate` | Turns every page of a finished scan upright from its text; pages with too little text are left alone. Returns the updated scan (each turned page has `autoRotated` set to the clockwise degrees applied). `503` when tesseract's `osd` data isn't installed, `409` while the scan runs. |
+| `GET /api/paperless/metadata` | `{tags, correspondents, documentTypes}` from Paperless, each `[{id, name}]`. `503` if Paperless isn't configured, `502` if it can't be reached or rejects the token. |
+| `POST /api/paperless/send` | `{"pages":[{"jobId","page"}...], "title", "created":"YYYY-MM-DD", "correspondent":id, "documentType":id, "tags":[id...]}` — builds one PDF from the pages in the order given and uploads it. Zero IDs and an empty date are left to Paperless. `202 {title, taskId}`; each scan the pages came from records the document under `sent`. |
+| `POST /api/scans/{id}/sent/refresh` | Asks Paperless how each of the scan's queued or processing uploads is doing, saves the answer and returns the updated scan. |
 | `POST /api/export/combine` | `{"pages":[{"jobId","page"}...], "title"}` — combines pages **from any scans** into one PDF, in the given order. |
 
 Errors look like:
@@ -205,7 +272,7 @@ Errors look like:
 |---|---|
 | `device_not_found` | No matching USB device. Check power and cabling; confirm with `lsusb -d 2740:000c`. |
 | `claim_interface_failed` | Device found, but its USB interface couldn't be claimed — usually a permissions issue (see USB passthrough above) or another process already has it open. |
-| `scsi_error` | A SCSI command failed in a way that isn't a normal end-of-document condition. |
+| `scsi_error` | A command to the scanner failed. When the scanner itself reports a problem, such as a paper jam, the message says so in plain words and a scan fails with it. |
 | `not_found` | The requested job or page doesn't exist. |
 | `bad_request` | Malformed input (bad JSON, invalid page number, unsupported export format, etc). |
 
@@ -214,11 +281,12 @@ Errors look like:
 This app is built around a small `driver.Driver`/`driver.Session`
 interface (`internal/driver`); nothing in job orchestration, storage, the
 HTTP API, or the frontend knows about the Doxie DX400 specifically. A
-second Avision-family scanner could reuse `internal/scsiusb` (the generic
-USB-bulk + SCSI-CDB transport) unchanged and only needs its own protocol
-constants and sense-code classification — see `internal/doxiedx400` for
-the reference implementation. Select which driver runs via the
-`DOXIE_DRIVER` environment variable (default `doxie-dx400`).
+second scanner would add a package that implements that interface and
+registers itself under a name (see `internal/doxiedx400`, the one
+implementation today, for the shape), reusing `internal/scsiusb` (the USB
+transport and the 12-byte command framing) if it speaks the same
+Avision-family dialect. Select the driver with the `DOXIE_DRIVER`
+environment variable (default `doxie-dx400`).
 
 ## Configuration
 
@@ -226,7 +294,9 @@ the reference implementation. Select which driver runs via the
 |---|---|---|
 | `DOXIE_DATA_DIR` | `/data` | Where scan jobs are stored. Must be writable; see above. |
 | `DOXIE_LISTEN_ADDR` | `:8080` | HTTP listen address. |
-| `DOXIE_DRIVER` | `doxie-dx400` | Which registered driver to use. |
+| `DOXIE_DRIVER` | `doxie-dx400` | Which registered driver to use. Only `doxie-dx400` exists today. |
+| `DOXIE_PAPERLESS_URL` | *(unset)* | Address of your Paperless-ngx, as this server reaches it, e.g. `http://paperless.lan:8000`. With the token, turns on *Send to Paperless*. |
+| `DOXIE_PAPERLESS_TOKEN` | *(unset)* | A Paperless API token (Paperless → your name → My Profile → API Auth Token). Both this and the URL must be set. Keep it out of the compose file: put both in a `.env` next to it (see `.env.example`). |
 | `DOXIE_OCR_LANG` | `eng` | Tesseract language code "Extract Text" uses. Anything besides `eng` needs the matching `tesseract-ocr-data-<lang>` package added to a custom build — only English data ships in the published image. |
 
 ## Local development
@@ -277,33 +347,54 @@ plain push to `main` with no tag only runs CI — it never publishes an
 image, so `:latest` always means "latest release," not "whatever's
 currently on main."
 
-## Duplex is on by default
+## Using the scanner
 
-Earlier revisions of this README warned of a front-side color cast
-whenever duplex mode was requested, and defaulted the UI to simplex to
-avoid it. That didn't hold up: isolating the duplex SET WINDOW payload's
-two changed bytes (the doubled `line_count` and the bit that enables the
-scanner's second CIS sensor) and testing each independently against real
-hardware, on a freshly power-cycled scanner, produced **no cast under
-any combination** — including full duplex. The original observation was
-most likely a symptom of the scanner having degraded from many rapid
-back-to-back test scans in one session (a confound the original hardware
-research notes explicitly flagged and never re-verified against a clean
-device). Duplex is now the default.
+- **"Scanner not connected"** in the top bar: check the scanner is
+  switched on and plugged in. It can switch itself off after sitting
+  idle; press its power button and the badge turns green by itself. Then
+  confirm it's visible to the host with `lsusb -d 2740:000c` (see USB
+  passthrough above).
+- **A paper jam** is reported as one: open the scanner, take the sheet
+  out, then switch the scanner off and on before scanning again.
+- The scanner takes paper from the top tray (stacks), the slot at the back
+  (single sheets) and the tray at the front. The scanner always reads its
+  full 8.5 inch width, which is why a photo or card comes out surrounded
+  by gray backing and why auto-crop exists.
 
-One thing this hasn't specifically tested: whether the cast could still
-depend on the rear sensor reading actual printed content rather than
-blank paper (the test page used was blank on the back). If you notice a
-color cast in practice, that's the next thing to isolate — please open
-an issue with a sample image.
+## Credits
 
-## License
+- **[jasonlearst/doxie-scanner](https://github.com/jasonlearst/doxie-scanner)**
+  (MIT, a fork of this project made at 1.0.8). This project's scanner
+  driver, and several features, are adapted from that work, with thanks:
+  - the **driver for the Doxie's own protocol** (`internal/doxiedx400`):
+    the 12-byte commands, the SET WINDOW payloads, the on-device JPEG mode,
+    and the sequence that keeps one scan job open across a stack, all taken
+    from USB captures of Doxie's own drivers, together with the real
+    captured scan data its tests use; and the matching USB transport
+    (`internal/scsiusb`: the command framing and the control-transfer send)
+  - the **Paperless-ngx client** (`internal/paperless`)
+  - the **sheet detector** that finds a photo or card in the scan and its
+    tilt (`internal/pageimage`), which auto-crop builds on
+  - the lessons that went with them: feed the next sheet while the last is
+    being processed, and keep the scan job reserved for the whole stack
+- Everything else (the web app, storage, the API, PDF and OCR export,
+  auto-rotate, auto-crop's safety rule, bulk delete, progress, and the
+  original 1.x driver in the git history) is this project's own.
+
+## License## License
 
 MIT — see [LICENSE](LICENSE).
 
+Portions are adapted from [jasonlearst/doxie-scanner](https://github.com/jasonlearst/doxie-scanner)
+(MIT); see Credits above.
+
 This project uses [`google/gousb`](https://github.com/google/gousb)
 (Apache-2.0) for USB access, [`disintegration/imaging`](https://github.com/disintegration/imaging)
-(MIT) for rotate/crop, and [`go-pdf/fpdf`](https://github.com/go-pdf/fpdf)
-(MIT) for PDF generation. The frontend vendors
+(MIT) for rotate/crop/straighten, and [`go-pdf/fpdf`](https://github.com/go-pdf/fpdf)
+(MIT) for PDF generation. The Docker image also runs
+[Tesseract](https://github.com/tesseract-ocr/tesseract) (Apache-2.0) for
+OCR and for reading a page's orientation, and
+[unpaper](https://github.com/unpaper/unpaper) (GPL-2.0-or-later) to
+straighten a page before OCR, each as a separate program. The frontend vendors
 [Bootstrap](https://getbootstrap.com/) / [Bootswatch "Flatly"](https://bootswatch.com/flatly/)
 (MIT) and [Cropper.js](https://fengyuanchen.github.io/cropperjs/) (MIT).

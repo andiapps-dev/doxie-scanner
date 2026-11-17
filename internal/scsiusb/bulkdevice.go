@@ -1,14 +1,16 @@
-// Package scsiusb implements a generic, device-agnostic transport for
-// talking to USB scanners that accept standard SCSI Command Descriptor
-// Blocks (CDBs) over plain USB bulk transfers instead of a real SCSI bus.
+// Package scsiusb is the USB transport for Avision-family scanners that
+// take SCSI-style Command Descriptor Blocks over USB instead of a SCSI
+// bus, using the 12-byte framing Doxie's own DX400 driver speaks.
 //
 // It knows nothing about any specific scanner model's opcodes, window
 // parameters, or sense-code meanings — that lives in a device-specific
-// package (e.g. internal/doxiedx400). This package only knows how to pad
-// and send a CDB, optionally write/read a payload, read the one-byte
-// status every command is followed by, retry on transport hiccups, and
-// surface a check-condition's sense data for the caller to interpret.
+// package (e.g. internal/doxiedx400). This package only sends a CDB,
+// optionally writes/reads a payload, reads the status every command is
+// followed by, retries transport hiccups, and surfaces a check
+// condition's sense data for the caller to interpret.
 package scsiusb
+
+import "context"
 
 // BulkDevice is the minimal seam between this package's protocol-level
 // logic and a real USB device. The only implementation that talks to real
@@ -27,4 +29,17 @@ type BulkDevice interface {
 	Read(p []byte) (int, error)
 	// Close releases the underlying device/interface/context.
 	Close() error
+}
+
+// InterruptReader is implemented by devices with an interrupt IN pipe,
+// which Avision scanners use to report button presses.
+type InterruptReader interface {
+	ReadInterrupt(ctx context.Context, p []byte) (int, error)
+}
+
+// CommandSender is implemented by devices that can deliver a CDB as a
+// USB vendor control request, which is how Doxie's own driver sends
+// 12-byte commands. Command12 falls back to bulk OUT otherwise.
+type CommandSender interface {
+	SendCommand(cdb []byte) error
 }

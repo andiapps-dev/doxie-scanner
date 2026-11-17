@@ -1,76 +1,119 @@
 package doxiedx400
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/andiapps-dev/doxie-scanner/internal/scsiusb"
 )
 
-// scanOnePage scans a single sheet already confirmed present in the ADF
-// (callers must check hasPaper first). It resends the full per-page
-// setup (window, calibration, color matrix, gamma, attach-truncate)
-// every time, since it isn't known whether this device supports keeping
-// settings across pages — resending is cheap and matches the one
-// proven-working sequence exactly.
-//
-// If the image-data read loop fails with a genuine error (not a graceful
-// ScanComplete end-of-document), this returns immediately without
-// running the REQUEST SENSE/RELEASE UNIT cleanup that follows a normal
-// finish — matching the reference implementation's behavior exactly,
-// including that gap.
-func scanOnePage(dev scsiusb.BulkDevice, duplex bool) ([][]byte, error) {
-	if err := setWindow(dev, duplex); err != nil {
+// maxChunksPerSheet bounds the read loop (256 MB) so a scanner that never
+// reports end-of-side can't spin forever.
+const maxChunksPerSheet = 1024
+
+// scanSheet feeds one sheet of an open batch and returns a complete JPEG
+// per side (front, then rear when duplex).
+func scanSheet(dev scsiusb.BulkDevice, w window, quant []byte) ([][]byte, error) {
+	if err := control(dev, opReserve, flagScanUnit); err != nil {
 		return nil, err
 	}
-	if _, err := readCalibrationFormat(dev); err != nil {
-		return nil, err
+	raw, lines, readErr := readSides(dev, w.duplex)
+	relErr := control(dev, opRelease, flagScanUnit)
+	if readErr != nil {
+		return nil, readErr
 	}
-	if err := sendColorMatrix(dev); err != nil {
-		return nil, err
+	if relErr != nil {
+		return nil, relErr
+	}
+
+	sides := make([][]byte, len(raw))
+	for i := range raw {
+		sides[i] = wrapJPEG(w.width, lines[i], quant, raw[i])
+	}
+	return sides, nil
+}
+
+// prepareNext is the shorter setup Doxie's driver repeats before each
+// later sheet of a stack.
+func prepareNext(dev scsiusb.BulkDevice, w window) error {
+	if err := setWindow(dev, w); err != nil {
+		return err
+	}
+	for _, dt := range []byte{dtTruncateHead, dtTruncateTail} {
+		if err := send(dev, dt, truncateNone); err != nil {
+			return err
+		}
+	}
+	_, err := read(dev, dtCalibrationFmt, calibrationFmtLen)
+	return err
+}
+
+func prepare(dev scsiusb.BulkDevice, w window, quant []byte) error {
+	if _, err := read(dev, dtScanStatus, scanStatusLen); err != nil {
+		return err
+	}
+	if err := setWindow(dev, w); err != nil {
+		return err
+	}
+	if w.duplex {
+		if _, err := read(dev, dtDuplexTransfer, duplexTransferLen); err != nil {
+			return err
+		}
+	}
+	for _, dt := range []byte{dtTruncateHead, dtTruncateTail} {
+		if err := send(dev, dt, truncateNone); err != nil {
+			return err
+		}
+	}
+	if err := send(dev, dtJPEGQuant, quantPayload(quant)); err != nil {
+		return err
+	}
+	if _, err := read(dev, dtCalibrationFmt, calibrationFmtLen); err != nil {
+		return err
 	}
 	for channel := byte(0); channel < 3; channel++ {
-		if err := sendGammaChannel(dev, channel); err != nil {
-			return nil, err
+		if err := send(dev, dtGamma, gammaPayload(channel)); err != nil {
+			return err
 		}
 	}
-	if err := sendAttachTruncate(dev, datatypeAttachTruncTail); err != nil {
-		return nil, err
-	}
-	if err := sendAttachTruncate(dev, datatypeAttachTruncHead); err != nil {
-		return nil, err
-	}
-	if err := reserveUnit(dev); err != nil {
-		return nil, err
-	}
-	if err := startScan(dev); err != nil {
-		return nil, err
-	}
+	return nil
+}
 
-	var chunks [][]byte
-	for {
-		data, err := readImageChunk(dev)
+// readSides collects each side's scan data. In duplex the scanner
+// alternates front/rear chunks until one side ends; every later chunk
+// belongs to the side still running.
+func readSides(dev scsiusb.BulkDevice, duplex bool) ([][]byte, []int, error) {
+	n := 1
+	if duplex {
+		n = 2
+	}
+	data, lines, done := make([][]byte, n), make([]int, n), make([]bool, n)
+	side, remaining := 0, n
+
+	for reads := 0; remaining > 0; reads++ {
+		if reads >= maxChunksPerSheet {
+			return nil, nil, fmt.Errorf("doxiedx400: no end of page after %d chunks", reads)
+		}
+		chunk, s, err := readImageChunk(dev)
 		if err != nil {
-			var sc *scsiusb.ScanComplete
-			if errors.As(err, &sc) {
-				break
+			return nil, nil, err
+		}
+		if s == nil {
+			data[side] = append(data[side], chunk...)
+		} else {
+			if !s.endOfSide() {
+				return nil, nil, s.err()
 			}
-			return nil, err
+			valid := min(max(s.validBytes, 0), len(chunk))
+			data[side] = append(data[side], chunk[:valid]...)
+			if len(data[side]) != s.sideBytes {
+				return nil, nil, fmt.Errorf("doxiedx400: side %d is %d bytes, scanner reported %d", side, len(data[side]), s.sideBytes)
+			}
+			lines[side], done[side] = s.lines, true
+			remaining--
 		}
-		if len(data) == 0 {
-			break
+		if duplex && !done[1-side] {
+			side = 1 - side
 		}
-		chunks = append(chunks, data)
 	}
-
-	if _, err := requestSenseCmd(dev); err != nil {
-		return nil, err
-	}
-	if err := releaseUnit(dev, 0x00); err != nil {
-		return nil, err
-	}
-	if err := releaseUnit(dev, 0x01); err != nil {
-		return nil, err
-	}
-
-	return chunks, nil
+	return data, lines, nil
 }

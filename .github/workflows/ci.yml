@@ -30,7 +30,7 @@ jobs:
       - name: Install libusb + build tools + OCR tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libusb-1.0-0-dev pkg-config build-essential tesseract-ocr tesseract-ocr-eng unpaper
+          sudo apt-get install -y libusb-1.0-0-dev pkg-config build-essential tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd unpaper
 
       - run: go vet ./...
 
@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
         with:
           context: .
