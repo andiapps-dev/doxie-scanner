@@ -484,15 +484,8 @@
     const job = state.selectedJob;
     const jobScope = document.querySelector('.export-scope[data-scope="job"]');
     if (jobScope) {
-      if (!job) {
-        jobScope.textContent = '';
-      } else {
-        const ticked = state.combineOrder.filter((k) => (state.combineSelection.get(k) || {}).jobId === job.id).length;
-        const total = (job.pages || []).filter((p) => !pendingHiddenPage(job.id, p.index)).length;
-        jobScope.textContent = ticked > 0
-          ? I18N.t('export.scopeSelected', { count: ticked })
-          : I18N.t('export.scopeAll', { count: total });
-      }
+      const total = job ? (job.pages || []).filter((p) => !pendingHiddenPage(job.id, p.index)).length : 0;
+      jobScope.textContent = job ? I18N.t('export.scopeAll', { count: total }) : '';
     }
     const barScope = document.querySelector('.export-scope[data-scope="bar"]');
     if (barScope) barScope.textContent = I18N.t('export.scopeSelected', { count: state.combineOrder.length });
@@ -503,15 +496,12 @@
     const selected = pages.filter((p) => state.combineSelection.has(combineKey(jobId, p.index))).length;
     el('grid-select-all').classList.toggle('d-none', pages.length === 0 || selected === pages.length);
     el('grid-select-none').classList.toggle('d-none', selected === 0);
-    const sendBtn = el('job-send-btn');
-    sendBtn.textContent = selected > 0
-      ? I18N.t('jobDetail.sendSelected', { count: selected })
-      : I18N.t('jobDetail.sendToPaperless');
-    sendBtn.title = I18N.t(selected > 0 ? 'jobDetail.sendSelectedTitle' : 'jobDetail.sendToPaperlessTitle');
-    // With pages ticked, the header's export acts on just those.
-    el('job-export-pdf-btn').textContent = selected > 0
-      ? I18N.t('export.buttonSelected', { count: selected })
-      : I18N.t('jobDetail.exportPdf');
+    // While pages are ticked, the selection bar is the one place to send or
+    // export them (it also holds pages from other scans), so the scan's own
+    // whole-scan buttons step aside rather than offering the same thing twice.
+    const hasSelection = state.combineOrder.length > 0;
+    el('job-send-btn').hidden = hasSelection;
+    el('job-export-group').hidden = hasSelection;
   }
 
   function selectAllPages() {
@@ -1208,13 +1198,7 @@
       toast(I18N.t('alert.noPages'), { kind: 'warning' });
       return;
     }
-    // Ticked pages of this scan (in the order they were ticked) win over
-    // "everything", so exporting what you selected gives what you selected.
-    const ticked = state.combineOrder
-      .map((key) => state.combineSelection.get(key))
-      .filter((p) => p && p.jobId === job.id)
-      .map((p) => ({ jobId: p.jobId, page: p.page }));
-    const pages = ticked.length > 0 ? ticked : job.pages.map((p) => ({ jobId: job.id, page: p.index }));
+    const pages = job.pages.map((p) => ({ jobId: job.id, page: p.index }));
     await exportPages(pages, job.name, opt);
   }
 
@@ -1391,11 +1375,6 @@
   function sendScanToPaperless() {
     const job = state.selectedJob;
     if (!job || !(job.pages || []).length) return;
-    // Ticked pages of this scan win, as they do for export.
-    const ticked = state.combineOrder
-      .map((k) => state.combineSelection.get(k))
-      .filter((p) => p && p.jobId === job.id);
-    if (ticked.length > 0) return openSendDialog(ticked.map((p) => ({ jobId: p.jobId, page: p.page })), job.name, false);
     const sent = sentPageSet(job);
     let pick = job.pages.filter((p) => !sent.has(p.index));
     if (pick.length === 0) pick = job.pages;

@@ -79,10 +79,7 @@
     "autoRotated_other": "Turned {count} pages upright.",
     "autoCropped_one": "Trimmed {count} page to the sheet.",
     "autoCropped_other": "Trimmed {count} pages to the sheet.",
-    "helpTouch": "Press and hold a page, then drag to reorder. Tap a page to open it.",
-    "sendSelected_one": "Send {count} selected page to Paperless…",
-    "sendSelected_other": "Send {count} selected pages to Paperless…",
-    "sendSelectedTitle": "Send just the pages you ticked in this scan"
+    "helpTouch": "Press and hold a page, then drag to reorder. Tap a page to open it."
   },
   "combine": {
     "titlePlaceholder": "Document title",
@@ -213,8 +210,6 @@
     "button": "Export PDF",
     "pdfGroup": "PDF",
     "imagesGroup": "Separate images (ZIP)",
-    "buttonSelected_one": "Export {count} selected page",
-    "buttonSelected_other": "Export {count} selected pages",
     "scopeSelected_one": "Exports the {count} selected page",
     "scopeSelected_other": "Exports the {count} selected pages",
     "scopeAll_one": "Exports all {count} page of this scan",

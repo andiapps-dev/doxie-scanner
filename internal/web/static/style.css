@@ -1,3 +1,26 @@
+/* Say how to reorder in the way that works on this device: the mouse hint is
+   the default, and a touch screen swaps it for the touch one (never both, even
+   when the browser reports no pointer type at all). */
+.grid-hint-touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .grid-hint-mouse {
+    display: none;
+  }
+
+  .grid-hint-touch {
+    display: block;
+  }
+}
+
+/* Menu text readable: Flatly's default link and header greys are too faint. */
+.dropdown-menu {
+  --bs-dropdown-link-color: var(--bs-body-color);
+  --bs-dropdown-header-color: var(--bs-secondary-color);
+}
+
 /* Minimal overrides only — Bootswatch Flatly does the heavy lifting. */
 
 /* Page grid: thumbnails fill available width left-to-right, then wrap to

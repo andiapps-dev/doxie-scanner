@@ -9,15 +9,17 @@ like `v1.2.0`, and each one gets its own section below.
 
 ### Added
 
-- **Export menus say what they will export.** Ticking two of three pages and
-  choosing the scan header's export gave all three, because that menu always
-  meant "the whole scan". The header export now acts on the ticked pages of
-  that scan when there are any (its button reads "Export 2 selected pages"),
-  and both export menus start with a line stating exactly what they will
-  export, such as "Exports the 2 selected pages" or "Exports all 4 pages of this scan".
-  The scan header's *Send to Paperless…* follows the same rule: with pages ticked
-  it sends just those ("Send 2 selected pages to Paperless…"), otherwise the
-  pages not yet in Paperless as before.
+- **One place to act on a selection.** Ticking pages used to show Send to
+  Paperless and Export twice, in the scan header and in the bar at the bottom,
+  with nothing saying why. The bottom bar is the place for a selection (it can
+  hold pages from several scans and sets their order), so while anything is
+  ticked the scan header's whole-scan Send and Export step aside, and come back
+  when the selection is cleared. Both export menus now open with a line saying
+  exactly what they export, such as "Exports the 2 selected pages" or "Exports
+  all 4 pages of this scan".
+- **Readability fixes.** The menu text was a faint grey; it now uses the body
+  colour. The reorder hint no longer shows both its mouse and touch wording when
+  the browser does not report a pointer type.
 - **Export pages as separate images.** Choosing JPEG or PNG for several selected
   pages always produced a PDF: that menu only set the image format *inside* the
   PDF. The selection bar's *Export* button now has a menu with two clear groups,
