@@ -1,0 +1,15 @@
+{
+  "description": "Self-hosted web app for the Doxie Pro DX400 scanner: scan from your browser over USB, auto-crop photos and cards, auto-rotate pages, then export PDFs or send them straight to Paperless-ngx. Written in Go, shipped as one Docker image.",
+  "homepage": "",
+  "topics": [
+    "doxie",
+    "document-scanner",
+    "scanner",
+    "paperless-ngx",
+    "self-hosted",
+    "golang",
+    "docker",
+    "usb",
+    "ocr"
+  ]
+}
