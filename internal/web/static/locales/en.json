@@ -70,7 +70,7 @@
     "sendToPaperless": "Send to Paperless…",
     "sendToPaperlessTitle": "Send this scan's pages that aren't in Paperless yet (all of them if every page is already there)",
     "save": "Save",
-    "exportMenu": "PDF options",
+    "exportMenu": "Export options",
     "more": "More actions",
     "pages": "Pages",
     "selectAll": "Select all",
@@ -83,8 +83,6 @@
   },
   "combine": {
     "titlePlaceholder": "Document title",
-    "formatTitle": "Image format for the combined PDF",
-    "button": "Combine into PDF",
     "clear": "Clear selection",
     "thumbAlt": "Page {n} of combined document",
     "removeTitle": "Remove from selection",
@@ -207,5 +205,10 @@
     "restored": "Restored the original.",
     "scansDeleted_one": "Deleted {count} scan.",
     "scansDeleted_other": "Deleted {count} scans."
+  },
+  "export": {
+    "button": "Export PDF",
+    "pdfGroup": "PDF",
+    "imagesGroup": "Separate images (ZIP)"
   }
 }

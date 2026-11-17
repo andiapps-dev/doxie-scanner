@@ -70,7 +70,7 @@
     "sendToPaperless": "Enviar a Paperless…",
     "sendToPaperlessTitle": "Envía las páginas de este escaneo que aún no están en Paperless (todas si ya están todas)",
     "save": "Guardar",
-    "exportMenu": "Opciones de PDF",
+    "exportMenu": "Opciones de exportación",
     "more": "Más acciones",
     "pages": "Páginas",
     "selectAll": "Seleccionar todo",
@@ -83,8 +83,6 @@
   },
   "combine": {
     "titlePlaceholder": "Título del documento",
-    "formatTitle": "Formato de imagen para el PDF combinado",
-    "button": "Combinar en PDF",
     "clear": "Limpiar selección",
     "thumbAlt": "Página {n} del documento combinado",
     "removeTitle": "Quitar de la selección",
@@ -207,5 +205,10 @@
     "restored": "Se restauró el original.",
     "scansDeleted_one": "Se eliminó {count} escaneo.",
     "scansDeleted_other": "Se eliminaron {count} escaneos."
+  },
+  "export": {
+    "button": "Exportar PDF",
+    "pdfGroup": "PDF",
+    "imagesGroup": "Imágenes separadas (ZIP)"
   }
 }

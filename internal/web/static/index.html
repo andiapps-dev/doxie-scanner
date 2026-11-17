@@ -89,12 +89,18 @@
               <button id="job-send-btn" type="button" class="btn btn-primary d-none" data-i18n="jobDetail.sendToPaperless" data-i18n-title="jobDetail.sendToPaperlessTitle" title="Send this scan's pages that aren't in Paperless yet">Send to Paperless…</button>
               <div class="btn-group">
                 <button id="job-export-pdf-btn" type="button" class="btn btn-outline-primary" data-i18n="jobDetail.exportPdf">Export PDF</button>
-                <button type="button" class="btn btn-outline-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" data-i18n-title="jobDetail.exportMenu" title="PDF options">
-                  <span class="visually-hidden" data-i18n="jobDetail.exportMenu">PDF options</span>
+                <button type="button" class="btn btn-outline-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" data-i18n-title="jobDetail.exportMenu" title="Export options">
+                  <span class="visually-hidden" data-i18n="jobDetail.exportMenu">Export options</span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
-                  <li><button type="button" class="dropdown-item job-export-fmt" data-fmt="jpeg" data-i18n="common.formatJpeg">JPEG (smaller)</button></li>
-                  <li><button type="button" class="dropdown-item job-export-fmt" data-fmt="png" data-i18n="common.formatPng">PNG (lossless)</button></li>
+                  <li><h6 class="dropdown-header" data-i18n="export.pdfGroup">PDF</h6></li>
+                  <li><button type="button" class="dropdown-item export-opt" data-kind="pdf" data-fmt="jpeg" data-i18n="common.formatJpeg">JPEG (smaller)</button></li>
+                  <li><button type="button" class="dropdown-item export-opt" data-kind="pdf" data-fmt="png" data-i18n="common.formatPng">PNG (lossless)</button></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><h6 class="dropdown-header" data-i18n="export.imagesGroup">Separate images (ZIP)</h6></li>
+                  <li><button type="button" class="dropdown-item export-opt" data-kind="images" data-fmt="png" data-i18n="common.formatPng">PNG (lossless)</button></li>
+                  <li><button type="button" class="dropdown-item export-opt" data-kind="images" data-fmt="jpeg" data-q="100" data-i18n="common.formatJpegHigh">JPEG (high quality)</button></li>
+                  <li><button type="button" class="dropdown-item export-opt" data-kind="images" data-fmt="jpeg" data-q="90" data-i18n="common.formatJpeg">JPEG (smaller)</button></li>
                 </ul>
               </div>
               <div class="dropdown">
@@ -138,11 +144,22 @@
       <div id="combine-thumbs" class="d-flex align-items-start gap-2 my-1"></div>
       <div class="combine-controls">
         <input id="combine-title" type="text" class="form-control form-control-sm" data-i18n-placeholder="combine.titlePlaceholder" placeholder="Document title" aria-label="Document title">
-        <select id="combine-format" class="form-select form-select-sm" data-i18n-title="combine.formatTitle" title="Image format for the combined PDF" aria-label="Image format">
-          <option value="jpeg" selected data-i18n="common.formatJpeg">JPEG (smaller)</option>
-          <option value="png" data-i18n="common.formatPng">PNG (lossless)</option>
-        </select>
-        <button id="combine-btn" type="button" class="btn btn-outline-primary btn-sm" data-i18n="combine.button">Combine into PDF</button>
+        <div class="btn-group dropup">
+          <button id="combine-btn" type="button" class="btn btn-outline-primary btn-sm" data-i18n="export.button">Export PDF</button>
+          <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" data-i18n-title="jobDetail.exportMenu" title="Export options">
+            <span class="visually-hidden" data-i18n="jobDetail.exportMenu">Export options</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><h6 class="dropdown-header" data-i18n="export.pdfGroup">PDF</h6></li>
+            <li><button type="button" class="dropdown-item export-opt" data-kind="pdf" data-fmt="jpeg" data-i18n="common.formatJpeg">JPEG (smaller)</button></li>
+            <li><button type="button" class="dropdown-item export-opt" data-kind="pdf" data-fmt="png" data-i18n="common.formatPng">PNG (lossless)</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><h6 class="dropdown-header" data-i18n="export.imagesGroup">Separate images (ZIP)</h6></li>
+            <li><button type="button" class="dropdown-item export-opt" data-kind="images" data-fmt="png" data-i18n="common.formatPng">PNG (lossless)</button></li>
+            <li><button type="button" class="dropdown-item export-opt" data-kind="images" data-fmt="jpeg" data-q="100" data-i18n="common.formatJpegHigh">JPEG (high quality)</button></li>
+            <li><button type="button" class="dropdown-item export-opt" data-kind="images" data-fmt="jpeg" data-q="90" data-i18n="common.formatJpeg">JPEG (smaller)</button></li>
+          </ul>
+        </div>
         <button id="combine-send-btn" type="button" class="btn btn-primary btn-sm d-none" data-i18n="combine.sendButton">Send to Paperless…</button>
       </div>
     </div>

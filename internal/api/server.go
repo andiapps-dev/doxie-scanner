@@ -67,6 +67,7 @@ func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, 
 	mux.HandleFunc("GET /api/scans/{id}/pages/{n}/ocr", s.handleExtractText)
 
 	mux.HandleFunc("POST /api/export/combine", s.handleCombine)
+	mux.HandleFunc("POST /api/export/images", s.handleExportImages)
 
 	mux.HandleFunc("POST /api/scans/{id}/auto-rotate", s.handleAutoRotate)
 	mux.HandleFunc("POST /api/scans/{id}/auto-crop", s.handleAutoCrop)

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"image/png"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/andiapps-dev/doxie-scanner/internal/pdfexport"
 )
@@ -149,6 +151,111 @@ func (s *Server) handleCombine(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", title+".pdf"))
 	w.Write(pdfBytes)
+}
+
+type imagesRequest struct {
+	Pages   []combinePageRef `json:"pages"`
+	Title   string           `json:"title,omitempty"`
+	Format  string           `json:"format"`
+	Quality int              `json:"quality,omitempty"`
+}
+
+// safeName reduces a user-typed title to something safe as a file name.
+func safeName(title, fallback string) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(title) {
+		switch {
+		case r < 0x20, strings.ContainsRune(`/\:*?"<>|`, r):
+			b.WriteRune('-')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	name := strings.Trim(b.String(), ". ")
+	if name == "" {
+		return fallback
+	}
+	return name
+}
+
+// handleExportImages streams the selected pages, in the order given, as a
+// ZIP of separate PNG or JPEG files. Every reference is checked before the
+// first byte is written, and pages are processed one at a time so memory
+// stays flat however many are selected.
+func (s *Server) handleExportImages(w http.ResponseWriter, r *http.Request) {
+	var req imagesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		return
+	}
+	if len(req.Pages) == 0 {
+		writeError(w, http.StatusBadRequest, "bad_request", "no pages specified")
+		return
+	}
+	ext := ""
+	switch req.Format {
+	case "png":
+		ext = "png"
+	case "jpeg", "jpg":
+		ext = "jpg"
+	default:
+		writeError(w, http.StatusBadRequest, "bad_request", "format must be \"png\" or \"jpeg\"")
+		return
+	}
+	quality := 90
+	if req.Quality != 0 {
+		if req.Quality < 1 || req.Quality > 100 {
+			writeError(w, http.StatusBadRequest, "bad_request", "quality must be 1-100")
+			return
+		}
+		quality = req.Quality
+	}
+
+	files := make([]string, len(req.Pages))
+	for i, ref := range req.Pages {
+		meta, err := s.store.LoadMeta(ref.JobID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found", fmt.Sprintf("job %q not found", ref.JobID))
+			return
+		}
+		pm, found := findPage(meta, ref.Page)
+		if !found {
+			writeError(w, http.StatusNotFound, "not_found", fmt.Sprintf("page %d not found in job %q", ref.Page, ref.JobID))
+			return
+		}
+		files[i] = pm.File
+	}
+
+	title := safeName(req.Title, "pages")
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", title+".zip"))
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+	for i, ref := range req.Pages {
+		data, err := s.store.LoadPageFile(ref.JobID, files[i])
+		if err == nil && ext == "jpg" {
+			var img image.Image
+			if img, err = png.Decode(bytes.NewReader(data)); err == nil {
+				var buf bytes.Buffer
+				if err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err == nil {
+					data = buf.Bytes()
+				}
+			}
+		}
+		if err != nil {
+			// Headers are gone; abort the connection so the client sees a
+			// failed download rather than a silently short archive.
+			panic(http.ErrAbortHandler)
+		}
+		// Images are already compressed; storing avoids wasted CPU.
+		fw, err := zw.CreateHeader(&zip.FileHeader{Name: fmt.Sprintf("%s-%03d.%s", title, i+1, ext), Method: zip.Store})
+		if err != nil {
+			panic(http.ErrAbortHandler)
+		}
+		if _, err := fw.Write(data); err != nil {
+			return
+		}
+	}
 }
 
 // loadError is a failure to load a selected page, with the HTTP response

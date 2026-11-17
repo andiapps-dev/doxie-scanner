@@ -323,10 +323,6 @@
   max-width: 22rem;
 }
 
-#combine-format {
-  width: auto;
-}
-
 /* ---- Tags in the send dialog: toggle chips, not a list box ---- */
 .send-tags {
   display: flex;

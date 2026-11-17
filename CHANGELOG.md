@@ -9,6 +9,17 @@ like `v1.2.0`, and each one gets its own section below.
 
 ### Added
 
+- **Export pages as separate images.** Choosing JPEG or PNG for several selected
+  pages always produced a PDF: that menu only set the image format *inside* the
+  PDF. The selection bar's *Export* button now has a menu with two clear groups,
+  *PDF* and *Separate images (ZIP)* (PNG, high-quality JPEG, smaller JPEG), and
+  the scan header's export menu offers the same for the whole scan. One selected
+  page downloads as a plain image. New `POST /api/export/images` streams the ZIP
+  page by page, so memory stays flat, and checks every page before sending a byte.
+- **Page labels follow reordering.** Dragging a page to the first spot left it
+  labelled "Page 2". Thumbnails are now labelled by their place in the scan.
+  Dropping a page in the empty space before the first page, or above the grid,
+  now also moves it to the front.
 - **Send to Paperless-ngx.** Tick pages (from one scan or several) in the
   selection bar and send them as one document with a title, date,
   correspondent, document type and tags chosen from Paperless's own

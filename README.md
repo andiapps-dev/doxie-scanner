@@ -103,7 +103,8 @@ sheets feed back to back. The old driver is in the git history.
 - Drag and drop to reorder pages within a scan
 - Export a single page as PNG, JPEG, or PDF; export a whole scan as one
   combined PDF with one click; or hand-pick pages from **any number of
-  past scans**, in any order, into one combined PDF
+  past scans**, in any order, into one combined PDF **or a ZIP of separate
+  PNG or JPEG images** (one selected page downloads as a plain image)
 - Auto-named scans ("Scan 2026-07-14 15:30"), renamable afterward, with
   the scan list showing creation date/time and page count so similarly
   named scans stay easy to tell apart
@@ -219,8 +220,8 @@ all (under about 520 pixels tall) falls back to an ordinary scrolling page.
   reorder, drag a page with a mouse, or on a phone or tablet **press and
   hold, then drag** (a quick swipe still scrolls; the list scrolls by
   itself when you drag near its edge, and Escape cancels); the page viewer's
-  *⋯* menu also has *Move earlier* and *Move later* for exact moves. Page
-  numbers don't change, only their position. Click or tap a page to open it. The tick-box in its corner selects it, and *Select
+  *⋯* menu also has *Move earlier* and *Move later* for exact moves. Pages
+  are labelled by their place in the scan, so the labels follow a reorder. Click or tap a page to open it. The tick-box in its corner selects it, and *Select
   all* / *Clear* above the grid do the whole scan.
 - **Page viewer**: the arrows (or the left/right keys) step through the
   scan, and what has been done to the page is shown under its title.
@@ -231,7 +232,7 @@ all (under about 520 pixels tall) falls back to an ordinary scrolling page.
   touch screen) to set the order, or × to drop one. *Send to Paperless…* sends them as one document with a
   title, date, correspondent, document type and tags, picked from your
   Paperless lists (tags are toggle buttons; anything left blank is up to
-  Paperless's own rules). *Combine into PDF* downloads them as one PDF.
+  Paperless's own rules). *Export PDF* downloads them as one PDF; its menu also offers a PDF with lossless PNG pages, or the pages as separate images in a ZIP (PNG, high-quality JPEG or smaller JPEG).
 - **Undo**: deleting a page or a scan hides it at once and offers *Undo* for
   a few seconds before it is really deleted, so there is no confirmation to
   click through. Closing the page in that time leaves it undeleted.
@@ -277,6 +278,7 @@ All endpoints are JSON except where noted. No authentication.
 | `POST /api/paperless/send` | `{"pages":[{"jobId","page"}...], "title", "created":"YYYY-MM-DD", "correspondent":id, "documentType":id, "tags":[id...]}` — builds one PDF from the pages in the order given and uploads it. Zero IDs and an empty date are left to Paperless. `202 {title, taskId}`; each scan the pages came from records the document under `sent`. |
 | `POST /api/scans/{id}/sent/refresh` | Asks Paperless how each of the scan's queued or processing uploads is doing, saves the answer and returns the updated scan. |
 | `POST /api/export/combine` | `{"pages":[{"jobId","page"}...], "title"}` — combines pages **from any scans** into one PDF, in the given order. |
+| `POST /api/export/images` | `{"pages":[{"jobId","page"}...], "title", "format":"png"\|"jpeg", "quality"}` — streams the pages, in the given order, as a ZIP of separate images (`<title>-001.png`…). PNG is stored unchanged; JPEG quality is 1–100 (default 90). |
 
 Errors look like:
 

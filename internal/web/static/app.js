@@ -471,9 +471,9 @@
       grid.innerHTML = `<p class="text-muted">${I18N.t('jobDetail.noPages')}</p>`;
       return;
     }
-    for (const page of pages) {
-      grid.appendChild(renderPageThumbnail(job.id, page));
-    }
+    pages.forEach((page, i) => {
+      grid.appendChild(renderPageThumbnail(job.id, page, i + 1));
+    });
   }
 
   // Select all / Clear above the page grid: the former while some of this
@@ -526,7 +526,7 @@
   // produces two independent pages per physical sheet (see
   // storage.PageMeta) — there's nothing special about a "back" page here,
   // it's just the next page in the list, same as any other.
-  function renderPageThumbnail(jobId, page) {
+  function renderPageThumbnail(jobId, page, position) {
     const thumbnail = document.createElement('div');
     thumbnail.className = 'page-thumbnail';
     thumbnail.dataset.page = page.index;
@@ -534,7 +534,8 @@
     const key = combineKey(jobId, page.index);
     const selected = state.combineSelection.has(key);
     const src = pageThumbUrl(jobId, page.index);
-    const label = I18N.t('page.label', { n: page.index });
+    // The label is the page's place in the scan, so it follows a reorder.
+    const label = I18N.t('page.label', { n: position });
     const badges = [];
     if (page.autoCrop) badges.push(`✂ ${I18N.t('page.autoCroppedBadge')}`);
     if (page.autoRotated) badges.push(`↻ ${I18N.t('page.autoRotatedBadge')}`);
@@ -625,10 +626,20 @@
         }
         return;
       }
-      if (!target && under && (under === container || container.contains(under))) {
+      if (!target) {
         const all = items();
+        const first = all[0];
         const last = all[all.length - 1];
-        if (last && last !== item) {
+        // Empty space before the first item (its left margin, or anywhere
+        // above the first row, even above the list itself) means "first".
+        if (first && first !== item) {
+          const f = first.getBoundingClientRect();
+          if (y < f.top || (y <= f.bottom && x < f.left)) {
+            container.insertBefore(item, first);
+            return;
+          }
+        }
+        if (last && last !== item && under && (under === container || container.contains(under))) {
           const r = last.getBoundingClientRect();
           if (y > r.bottom || (y >= r.top && x > r.right)) container.appendChild(item);
         }
@@ -729,7 +740,14 @@
   // itself is the source of truth for the drop, not a recomputed position.
   function commitReorder() {
     const jobId = state.selectedJobId;
-    const order = Array.from(el('page-grid').querySelectorAll('.page-thumbnail')).map((t) => Number(t.dataset.page));
+    const thumbs = Array.from(el('page-grid').querySelectorAll('.page-thumbnail'));
+    const order = thumbs.map((t) => Number(t.dataset.page));
+    // Show the new numbers at once rather than after the round trip.
+    thumbs.forEach((t, i) => {
+      const label = I18N.t('page.label', { n: i + 1 });
+      t.querySelector('.page-thumb').alt = label;
+      t.querySelector('.page-thumbnail-footer').firstChild.textContent = label;
+    });
     withBusy(async () => {
       await api(`/api/scans/${jobId}/pages/order`, {
         method: 'PATCH',
@@ -1095,42 +1113,72 @@
 
   // ---- Export / combine ----
 
-  async function downloadCombinedPDF(pages, title, imageFormat) {
+  async function saveBlob(res, filename) {
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // One export path for every menu: a PDF of the pages, or the pages as
+  // separate images. opt = {kind: 'pdf'|'images', fmt: 'jpeg'|'png', q?}.
+  async function exportPages(pages, title, opt) {
     await withBusy(async () => {
+      if (opt.kind === 'images') {
+        const ext = opt.fmt === 'png' ? 'png' : 'jpg';
+        if (pages.length === 1) {
+          // A single image needs no archive.
+          const { jobId, page } = pages[0];
+          const q = opt.fmt === 'png' ? '' : `&quality=${opt.q || 90}`;
+          const res = await api(`/api/scans/${encodeURIComponent(jobId)}/pages/${page}/export?format=${ext}${q}`);
+          await saveBlob(res, `${title}.${ext}`);
+          return;
+        }
+        const res = await api('/api/export/images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pages, title, format: opt.fmt, quality: opt.q }),
+        });
+        await saveBlob(res, `${title}.zip`);
+        return;
+      }
       const res = await api('/api/export/combine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pages, title, imageFormat }),
+        body: JSON.stringify({ pages, title, imageFormat: opt.fmt }),
       });
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${title}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      await saveBlob(res, `${title}.pdf`);
     });
   }
 
-  async function combineSelected() {
+  function exportOptOf(btn) {
+    return { kind: btn.dataset.kind, fmt: btn.dataset.fmt, q: btn.dataset.q ? Number(btn.dataset.q) : undefined };
+  }
+
+  const PDF_JPEG = { kind: 'pdf', fmt: 'jpeg' };
+
+  async function exportSelected(opt = PDF_JPEG) {
     const pages = state.combineOrder
       .map((key) => state.combineSelection.get(key))
       .filter(Boolean)
       .map((p) => ({ jobId: p.jobId, page: p.page }));
-    const title = el('combine-title').value.trim() || 'combined';
-    await downloadCombinedPDF(pages, title, el('combine-format').value);
+    const title = el('combine-title').value.trim() || (opt.kind === 'pdf' ? 'combined' : 'pages');
+    await exportPages(pages, title, opt);
   }
 
-  async function exportWholeScan(format = 'jpeg') {
+  async function exportWholeScan(opt = PDF_JPEG) {
     const job = state.selectedJob;
     if (!job || !job.pages || job.pages.length === 0) {
       toast(I18N.t('alert.noPages'), { kind: 'warning' });
       return;
     }
     const pages = job.pages.map((p) => ({ jobId: job.id, page: p.index }));
-    await downloadCombinedPDF(pages, job.name, format);
+    await exportPages(pages, job.name, opt);
   }
 
   // ---- Auto-rotate ----
@@ -1521,8 +1569,7 @@
     if (e.key === 'Escape' && state.selectedJob) { el('job-name-input').value = state.selectedJob.name; updateRenameButton(); }
   });
   el('job-delete-btn').addEventListener('click', deleteJob);
-  el('job-export-pdf-btn').addEventListener('click', () => exportWholeScan('jpeg'));
-  document.querySelectorAll('.job-export-fmt').forEach((b) => b.addEventListener('click', () => exportWholeScan(b.dataset.fmt)));
+  el('job-export-pdf-btn').addEventListener('click', () => exportWholeScan());
   el('job-back-btn').addEventListener('click', async () => {
     await flushPendingDelete();
     state.selectedJobId = null;
@@ -1533,7 +1580,10 @@
   });
   el('grid-select-all').addEventListener('click', selectAllPages);
   el('grid-select-none').addEventListener('click', clearScanSelection);
-  el('combine-btn').addEventListener('click', combineSelected);
+  el('combine-btn').addEventListener('click', () => exportSelected());
+  document.querySelectorAll('.export-opt').forEach((b) => b.addEventListener('click', () => {
+    (b.closest('#combine-bar') ? exportSelected : exportWholeScan)(exportOptOf(b));
+  }));
   el('combine-clear-btn').addEventListener('click', () => {
     state.combineSelection.clear();
     state.combineOrder = [];
