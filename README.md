@@ -186,9 +186,14 @@ lsusb -d 2740:000c
 
 ## Using the web UI
 
-On a computer the scan list sits beside the open scan. On a phone they take
-turns: tapping a scan opens it with a **← Scans** button to go back, and the
-header, page grid and selection bar are laid out to fit the screen.
+Everything fits in one window, with no page scrolling: the header and the
+new-scan card stay put, and the scan list and the open scan's pages each
+scroll in their own area (the scan's header and the Select all row stay in
+view while its pages scroll). The selection bar, when it shows, takes its
+height from the bottom and the panels above shrink to fit. On a computer the
+list sits beside the open scan; on a phone they take turns: tapping a scan
+opens it with a **← Scans** button to go back. A window too short to fit it
+all (under about 520 pixels tall) falls back to an ordinary scrolling page.
 
 - **New scan**: the switches choose duplex, auto-crop and auto-rotate for
   the next scan, then *Start scan*. While it runs the card says what it is

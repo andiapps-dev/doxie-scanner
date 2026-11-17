@@ -88,6 +88,12 @@ like `v1.2.0`, and each one gets its own section below.
   Pages have a visible tick-box with *Select all*. "Select for combine" is
   now "Select page", since the same selection feeds Send. Paperless tags are
   toggle chips instead of a multi-select list box.
+- **The whole app fits in one window.** The page no longer grows and scrolls:
+  the header and the new-scan card stay put, the scan list scrolls in its own
+  panel, and the open scan's pages scroll in theirs, with the scan's header and
+  the Select all row kept in view. The selection bar takes its height from the
+  bottom and the panels shrink to fit. A window under about 520 pixels tall
+  falls back to a normal scrolling page, so nothing is unreachable.
 - **The scanner driver is now the one for Doxie's own protocol**, adapted
   from the jasonlearst/doxie-scanner fork (credited in the README): the
   vendor's 12-byte command set, with the scanner JPEG-encoding each side

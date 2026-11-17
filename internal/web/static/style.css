@@ -390,3 +390,158 @@
     max-width: none;
   }
 }
+
+/* ---- One view ----
+   The page is exactly as tall as the window, so everything is in view at
+   once: the header and the new-scan card stay put, and the scan list and the
+   open scan's pages each scroll inside their own area. (The selection bar,
+   when it shows, takes its own height from the bottom and the rest shrinks.)
+   On a short window there is no room to do that, so it falls back to an
+   ordinary scrolling page below. */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body > nav.navbar {
+  flex: none;
+}
+
+body > main {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 1.25rem;
+  padding-bottom: 1rem;
+}
+
+/* Bootstrap's row/column grid sizes by width only. Use a real grid instead,
+   so the two panels can be given the height that is left. */
+body > main > .row {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1.25rem;
+  margin: 0;
+  --bs-gutter-x: 0;
+  --bs-gutter-y: 0;
+}
+
+body > main > .row > * {
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+#new-scan-card {
+  grid-column: 1 / -1;
+}
+
+/* The two panels fill their grid cell; what is inside scrolls. */
+#scan-list-col,
+#scan-detail-col {
+  display: flex;
+  flex-direction: column;
+}
+
+#scan-list-col > .card {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+#job-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+#job-detail {
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+#job-detail:not(.d-none) {
+  display: flex;
+}
+
+#job-detail > * {
+  flex: none;
+}
+
+/* The page grid takes what is left under the header, and scrolls. */
+#page-grid {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  /* Size each row to its thumbnail. In a grid with a fixed height, "auto"
+     rows are squeezed to share it (a thumbnail hides its overflow, so it
+     counts as able to shrink to nothing), which clipped every page to its
+     caption. */
+  grid-auto-rows: max-content;
+  /* room for the thumbnails' shadows and the scrollbar */
+  padding: 2px 6px 2px 2px;
+}
+
+@media (max-width: 991.98px) {
+  body > main > .row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  #scan-list-col {
+    grid-row: 2;
+  }
+
+  /* With no scan open the empty prompt sits under the list; an open scan
+     takes the list's place. */
+  #scan-detail-col {
+    grid-row: 3;
+  }
+
+  body.job-open #scan-detail-col {
+    grid-row: 2;
+  }
+
+  /* An open scan's pages need the room: with it open, the empty prompt has
+     none to take. */
+  #job-detail-empty {
+    padding-bottom: 0.25rem;
+  }
+}
+
+/* No room to fit it all: scroll the page as an ordinary page does. */
+@media (max-height: 520px) {
+  body {
+    height: auto;
+    min-height: 100dvh;
+    overflow: auto;
+  }
+
+  body > main > .row {
+    display: block;
+  }
+
+  body > main > .row > * {
+    margin-bottom: 1rem;
+  }
+
+  #job-list,
+  #page-grid {
+    overflow: visible;
+  }
+}
