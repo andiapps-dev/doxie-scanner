@@ -35,41 +35,62 @@
       "loading": "Cargando las páginas…",
       "cropping": "Recortando páginas a la hoja: página {n} de {total}…"
     },
-    "pagesSoFar": "{count} página(s) hasta ahora",
     "autoCropLabel": "Recortar y enderezar automáticamente",
-    "autoCropTitle": "Recorta fotos, tarjetas y recibos a la hoja y los endereza al terminar el escaneo"
+    "autoCropTitle": "Recorta fotos, tarjetas y recibos a la hoja y los endereza al terminar el escaneo",
+    "hint": {
+      "device_not_found": "No se detecta el escáner. Compruebe que esté encendido y conectado. Puede apagarse solo tras un rato inactivo.",
+      "claim_interface_failed": "Se encontró el escáner pero no se puede abrir. Otro programa puede estar usándolo, o falta configurar el acceso USB (véase el README).",
+      "other": "El escáner no responde. Compruebe que esté encendido y conectado.",
+      "unreachable": "No se puede conectar con el servidor de Doxie Scanner."
+    },
+    "pagesSoFar_one": "{count} página hasta ahora",
+    "pagesSoFar_other": "{count} páginas hasta ahora"
   },
   "jobs": {
     "heading": "Escaneos",
     "empty": "Aún no hay escaneos.",
     "selectPrompt": "Selecciona un escaneo para ver sus páginas.",
-    "pageCountUnit": "página(s)"
+    "pageCount_one": "{count} página",
+    "pageCount_other": "{count} páginas",
+    "emptyPrompt": "Cargue papel en el escáner y pulse Iniciar escaneo.",
+    "back": "← Escaneos"
   },
   "jobDetail": {
     "rename": "Renombrar",
-    "exportFormatTitle": "Formato de imagen para el PDF exportado",
-    "exportPdf": "Exportar escaneo como PDF",
+    "exportPdf": "Exportar PDF",
     "deleteScan": "Eliminar escaneo",
-    "help": "Los escaneos dúplex numeran cada cara como su propia página. Arrastra una miniatura para reordenarla. Haz clic en una miniatura para verla, rotarla, recortarla, exportarla o eliminarla.",
+    "help": "Arrastre las páginas para reordenarlas. Pulse una página para abrirla.",
     "noPages": "Aún no hay páginas.",
     "autoRotate": "Girar páginas automáticamente",
     "autoRotateTitle": "Pone todas las páginas derechas según su texto",
-    "autoRotated": "Se enderezaron {n} página(s).",
     "noneRotated": "Ninguna página necesitó girarse, o no tenían texto suficiente.",
     "autoCrop": "Recortar páginas",
     "autoCropTitle": "Recorta fotos, tarjetas y recibos a la hoja y los endereza",
-    "autoCropped": "Se recortaron {n} página(s) a la hoja.",
-    "noneCropped": "Ninguna página necesitó recorte: las páginas que llenan el escaneo se dejan como están."
+    "noneCropped": "Ninguna página necesitó recorte: las páginas que llenan el escaneo se dejan como están.",
+    "sendToPaperless": "Enviar a Paperless…",
+    "sendToPaperlessTitle": "Envía las páginas de este escaneo que aún no están en Paperless (todas si ya están todas)",
+    "save": "Guardar",
+    "exportMenu": "Opciones de PDF",
+    "more": "Más acciones",
+    "pages": "Páginas",
+    "selectAll": "Seleccionar todo",
+    "clearSelection": "Quitar",
+    "autoRotated_one": "Se enderezó {count} página.",
+    "autoRotated_other": "Se enderezaron {count} páginas.",
+    "autoCropped_one": "Se recortó {count} página a la hoja.",
+    "autoCropped_other": "Se recortaron {count} páginas a la hoja."
   },
   "combine": {
-    "selected": "{count} página(s) seleccionada(s) — arrastra las miniaturas para reordenar",
     "titlePlaceholder": "Título del documento",
     "formatTitle": "Formato de imagen para el PDF combinado",
     "button": "Combinar en PDF",
     "clear": "Limpiar selección",
     "thumbAlt": "Página {n} del documento combinado",
     "removeTitle": "Quitar de la selección",
-    "sendButton": "Enviar a Paperless…"
+    "sendButton": "Enviar a Paperless…",
+    "selected_one": "{count} página seleccionada",
+    "selected_other": "{count} páginas seleccionadas",
+    "hint": "Arrastre las miniaturas para reordenarlas."
   },
   "page": {
     "label": "Página {n}",
@@ -80,12 +101,12 @@
   "modal": {
     "imageAlt": "Página",
     "rotateLeftTitle": "Rotar 90° a la izquierda",
-    "rotateLeft": "⟲ Rotar izquierda",
+    "rotateLeft": "Girar a la izquierda",
     "rotateRightTitle": "Rotar 90° a la derecha",
-    "rotateRight": "⟳ Rotar derecha",
+    "rotateRight": "Girar a la derecha",
     "crop": "Recortar",
     "extractText": "Extraer texto",
-    "selectForCombine": "Seleccionar para combinar",
+    "selectForCombine": "Seleccionar página",
     "export": "Exportar",
     "deletePage": "Eliminar página",
     "cropCancel": "Cancelar",
@@ -100,17 +121,17 @@
     "nextPage": "Página siguiente",
     "pageOf": "Página {n} de {total}",
     "restoreOriginal": "Restaurar original",
-    "restoreOriginalTitle": "Devuelve esta página exactamente como se escaneó"
+    "restoreOriginalTitle": "Devuelve esta página exactamente como se escaneó",
+    "more": "Más"
   },
   "confirm": {
-    "deletePage": "¿Eliminar esta página?",
-    "deleteScan": "¿Eliminar este escaneo y todas sus páginas?",
-    "bulkDelete": "¿Eliminar {count} escaneo(s) y sus {pages} página(s)? No se puede deshacer.",
-    "bulkUnsent": "{count} de esas página(s) nunca se enviaron a Paperless."
+    "bulkDelete": "¿Eliminar {scans} y sus {pages}? No se puede deshacer.",
+    "bulkUnsent_one": "{count} de esas páginas nunca se envió a Paperless.",
+    "bulkUnsent_other": "{count} de esas páginas nunca se enviaron a Paperless."
   },
   "alert": {
     "noPages": "Este escaneo aún no tiene páginas.",
-    "bulkSkipped": "Se conservaron {count} escaneo(s) ({running} aún escaneando). Inténtelo de nuevo cuando terminen."
+    "bulkSkipped": "Se conservaron {scans} ({running} aún escaneando). Inténtelo de nuevo cuando terminen."
   },
   "busy": {
     "working": "Procesando…"
@@ -134,7 +155,6 @@
   },
   "send": {
     "heading": "Enviar a Paperless",
-    "summary": "{count} página(s) de la selección, en el orden mostrado, forman un documento.",
     "title": "Título",
     "date": "Fecha",
     "correspondent": "Corresponsal",
@@ -145,23 +165,44 @@
     "cancel": "Cancelar",
     "submit": "Enviar",
     "sending": "Enviando…",
-    "loadFailed": "No se pudieron cargar las listas de Paperless."
+    "loadFailed": "No se pudieron cargar las listas de Paperless.",
+    "summary_one": "{count} página se convierte en un documento.",
+    "summary_other": "{count} páginas, en el orden mostrado, forman un documento.",
+    "titlePlaceholder": "Por defecto, el nombre del escaneo"
   },
   "sent": {
     "heading": "Enviado a Paperless",
-    "pages": "página(s) {pages}",
     "queued": "Esperando a Paperless…",
     "processing": "Paperless lo está procesando…",
     "done": "Archivado en Paperless",
     "failed": "Paperless no pudo archivarlo",
-    "open": "Abrir"
+    "open": "Abrir",
+    "pages_one": "página {pages}",
+    "pages_other": "páginas {pages}"
   },
   "bulk": {
     "select": "Seleccionar",
     "done": "Listo",
     "selectAll": "Seleccionar todo",
-    "count": "{count} seleccionado(s)",
     "delete": "Eliminar seleccionados",
-    "runningTitle": "Aún escaneando: se podrá eliminar cuando termine"
+    "runningTitle": "Aún escaneando: se podrá eliminar cuando termine",
+    "count_one": "{count} seleccionado",
+    "count_other": "{count} seleccionados"
+  },
+  "count": {
+    "scan_one": "{count} escaneo",
+    "scan_other": "{count} escaneos",
+    "page_one": "{count} página",
+    "page_other": "{count} páginas"
+  },
+  "toast": {
+    "sent_one": "Se envió {count} página a Paperless como “{title}”.",
+    "sent_other": "Se enviaron {count} páginas a Paperless como “{title}”.",
+    "pageDeleted": "Página eliminada.",
+    "scanDeleted": "Escaneo eliminado.",
+    "undo": "Deshacer",
+    "restored": "Se restauró el original.",
+    "scansDeleted_one": "Se eliminó {count} escaneo.",
+    "scansDeleted_other": "Se eliminaron {count} escaneos."
   }
 }

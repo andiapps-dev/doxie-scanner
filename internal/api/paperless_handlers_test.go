@@ -331,3 +331,15 @@ func TestRefreshSent_OneFailedLookupDoesNotDiscardTheOthers(t *testing.T) {
 		t.Errorf("all lookups failed: status = %d, want 502", rec.Code)
 	}
 }
+
+func TestWithPaperlessOptionTurnsSendingOn(t *testing.T) {
+	store := storage.New(t.TempDir())
+	drv := &fakeDriver{info: driver.Info{Name: "d"}}
+	fake := newFakePaperless(t, t)
+	srv := NewServer(drv, scanjobs.NewManager(drv, store), store, nil, "test", "eng", WithPaperless(fake.client))
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/paperless/metadata", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200 with Paperless configured", rec.Code)
+	}
+}

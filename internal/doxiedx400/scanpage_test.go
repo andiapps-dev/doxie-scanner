@@ -6,6 +6,7 @@ import (
 	"image"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/andiapps-dev/doxie-scanner/internal/driver"
 )
@@ -133,5 +134,53 @@ func TestDetect(t *testing.T) {
 func TestIsBlank_AnEmptyImageIsBlank(t *testing.T) {
 	if !isBlank(image.NewNRGBA(image.Rect(0, 0, 0, 0))) {
 		t.Error("an empty image should count as blank")
+	}
+}
+
+// buttonDevice is a fake scanner that also has an interrupt pipe, where a
+// press of the scan button shows up as an 8-byte packet.
+type buttonDevice struct {
+	*fakeDevice
+	packet []byte
+	err    error
+}
+
+func (b *buttonDevice) ReadInterrupt(ctx context.Context, p []byte) (int, error) {
+	if b.err != nil {
+		return 0, b.err
+	}
+	if b.packet == nil {
+		<-ctx.Done() // nothing pressed: wait out the timeout
+		return 0, ctx.Err()
+	}
+	return copy(p, b.packet), nil
+}
+
+func TestWaitForButton(t *testing.T) {
+	ctx := context.Background()
+	press := []byte{buttonPressed, 0, 0, 0, 0, 0, 0, 0}
+	idle := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+
+	for name, c := range map[string]struct {
+		dev  *buttonDevice
+		want bool
+		err  bool
+	}{
+		"pressed":                 {&buttonDevice{fakeDevice: &fakeDevice{t: t}, packet: press}, true, false},
+		"a packet, not a press":   {&buttonDevice{fakeDevice: &fakeDevice{t: t}, packet: idle}, false, false},
+		"nothing within the wait": {&buttonDevice{fakeDevice: &fakeDevice{t: t}}, false, false},
+		"the pipe fails":          {&buttonDevice{fakeDevice: &fakeDevice{t: t}, err: errors.New("usb gone")}, false, true},
+	} {
+		sess := &session{dev: c.dev, sleep: func(time.Duration) {}}
+		got, err := sess.WaitForButton(ctx, 30*time.Millisecond)
+		if got != c.want || (err != nil) != c.err {
+			t.Errorf("%s: got %v, %v; want %v (error %v)", name, got, err, c.want, c.err)
+		}
+	}
+
+	// A device with no interrupt pipe simply never reports a press.
+	plain := &session{dev: &fakeDevice{t: t}, sleep: func(time.Duration) {}}
+	if got, err := plain.WaitForButton(ctx, 10*time.Millisecond); got || err != nil {
+		t.Errorf("no interrupt pipe: got %v, %v", got, err)
 	}
 }

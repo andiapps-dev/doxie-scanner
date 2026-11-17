@@ -410,6 +410,7 @@ func (s *Server) handleDeletePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_ = s.store.ClearThumbs(id) // file names now hold different pages
 	meta.Pages = renumbered
 	meta.PageCount = len(renumbered)
 	newIndex := make(map[int]int, len(remaining))

@@ -186,42 +186,49 @@ lsusb -d 2740:000c
 
 ## Using the web UI
 
-- **Scans list** (left panel): shows every scan with its creation
-  date/time and page count, newest first. The selected scan is
-  highlighted. Click a scan to view its pages.
-- **Deleting several scans**: *Select* above the list turns each scan
-  into a checkbox row, with *Select all* and a live count. *Delete
-  selected* asks first, saying how many scans and pages it is about to
-  remove, and, when Paperless is set up, how many of those pages were
+On a computer the scan list sits beside the open scan. On a phone they take
+turns: tapping a scan opens it with a **← Scans** button to go back, and the
+header, page grid and selection bar are laid out to fit the screen.
+
+- **New scan**: the switches choose duplex, auto-crop and auto-rotate for
+  the next scan, then *Start scan*. While it runs the card says what it is
+  doing, and the running scan appears in the list. If the scanner can't be
+  reached it says why and what to try (switch it on, plug it in; it can
+  switch itself off after sitting idle).
+- **Scans list**: every scan with its date, page count and state, newest
+  first. *Select* turns the rows into checkboxes with *Select all* and a
+  count; *Delete selected* asks first, saying how many scans and pages are
+  about to go and, with Paperless set up, how many of those pages were
   never sent to it. A scan that is still running can't be ticked or
-  deleted. Pages of deleted scans also leave the selection bar.
-- **Page grid**: one tile per page — a duplex sheet's front and back are
-  two separate tiles, tiled to fill the available width before wrapping
-  to the next row. Drag a tile to reorder it — page numbers/URLs don't
-  change, only their position in the scan.
-- **Page viewer**: click any page tile to open it full-size, with all
-  editing actions (rotate, crop, export, delete) in one place. Cropping
-  uses the already-loaded full-size image, so the crop tool never has to
-  resize itself mid-edit. A spinner covers the screen while an action
-  that round-trips through the server (rotate, crop, export, combine) is
-  in flight.
-- **Send to Paperless**: the same selection bar has a *Send to
-  Paperless…* button (shown when Paperless is set up, see Configuration).
-  It opens a form for the title, date, correspondent, document type and
-  tags, and sends the picked pages, in the order shown, as one PDF. Send
-  only some of a scan's pages, or pick pages from several scans, to make
-  one document; send the rest later as another. Under the scan's header,
-  a *Sent to Paperless* list shows each document's pages and progress
-  (waiting, processing, filed, or why it failed), and the sent pages
-  carry an "in Paperless" mark. A failed send leaves no record, so you
-  can simply try again.
-- **Combine into PDF**: check "select for combine" on any pages (in the
-  grid or the viewer) — across as many different scans as you like — and
-  a bar at the bottom shows a thumbnail of every page you've picked so
-  far. Drag those thumbnails to set the order the combined PDF comes out
-  in, or click the × on one to drop it from the selection, all without
-  leaving the bar. For a single scan, "Export scan as PDF" in its header
-  does the same for every page in that scan in one click.
+  deleted.
+- **An open scan**: its name is edited where it is (a *Save* button
+  appears while it has changed; Enter saves, Escape undoes). The buttons
+  are the actions you use most: *Send to Paperless…* (the pages not in
+  Paperless yet, or all of them if every page is), *Export PDF* (JPEG, or
+  PNG from the arrow beside it), and *⋯* for the occasional ones:
+  *Auto-crop pages*, *Auto-rotate pages* and *Delete scan*. Under it, what
+  has been sent to Paperless and how it is going.
+- **Pages**: one thumbnail per page, small JPEGs the server makes and
+  keeps, so a long scan loads quickly even over a phone connection. Each
+  carries its state ("auto-cropped", "auto-rotated", "in Paperless"). Drag
+  a page to reorder it (page numbers don't change, only their position);
+  click it to open it. The tick-box in its corner selects it, and *Select
+  all* / *Clear* above the grid do the whole scan.
+- **Page viewer**: the arrows (or the left/right keys) step through the
+  scan, and what has been done to the page is shown under its title.
+  *Rotate*, *Crop* and *Extract text* are on the left; *Select page*,
+  *Export* and *⋯* (*Restore original*, *Delete page*) on the right.
+- **The selection bar**: ticked pages, from one scan or several, collect in
+  a bar at the bottom with a thumbnail of each. Drag them to set the order,
+  or × to drop one. *Send to Paperless…* sends them as one document with a
+  title, date, correspondent, document type and tags, picked from your
+  Paperless lists (tags are toggle buttons; anything left blank is up to
+  Paperless's own rules). *Combine into PDF* downloads them as one PDF.
+- **Undo**: deleting a page or a scan hides it at once and offers *Undo* for
+  a few seconds before it is really deleted, so there is no confirmation to
+  click through. Closing the page in that time leaves it undeleted.
+- **Messages** (sent, trimmed, restored, deleted) appear as short toasts at
+  the top, not pop-up boxes.
 
 ## Scripts
 
@@ -248,6 +255,7 @@ All endpoints are JSON except where noted. No authentication.
 | `DELETE /api/scans/{id}` | Delete a scan and all its pages. `409` while the scan is still running (as does any edit to a running scan: rename, reorder, delete or rotate/crop a page, restore, auto-crop, auto-rotate). |
 | `POST /api/scans/bulk-delete` | `{"ids": ["...", ...]}` → `{deleted: [ids], skipped: [{id, reason}]}`. Always 200 once the request is valid: a scan that is already gone (`not_found`), still running (`scan_running`) or fails on disk (`internal_error`) is reported in `skipped` and doesn't stop the rest. A repeated id counts once. `400` for an empty list. |
 | `GET /api/scans/{id}/pages/{n}` | Raw page PNG. |
+| `GET /api/scans/{id}/pages/{n}/thumb` | A small JPEG of the page (fitted into 360x480), made on first request and cached on disk. The cache is keyed by the page file's size and modified time, so an edited page never shows an old thumbnail. |
 | `DELETE /api/scans/{id}/pages/{n}` | Delete one page. |
 | `PATCH /api/scans/{id}/pages/order` | `{"order": [3,1,2]}` — reorders a scan's pages (a permutation of its existing page numbers). Page numbers, URLs, and filenames don't change — only their position. |
 | `POST /api/scans/{id}/pages/{n}/rotate` | `{"degrees": 90\|180\|270}` — clockwise, in place. |

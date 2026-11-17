@@ -59,6 +59,7 @@ func NewServer(drv driver.Driver, jobs *scanjobs.Manager, store *storage.Store, 
 
 	mux.HandleFunc("PATCH /api/scans/{id}/pages/order", s.handleReorderPages)
 	mux.HandleFunc("GET /api/scans/{id}/pages/{n}", s.handleGetPage)
+	mux.HandleFunc("GET /api/scans/{id}/pages/{n}/thumb", s.handleGetThumb)
 	mux.HandleFunc("DELETE /api/scans/{id}/pages/{n}", s.handleDeletePage)
 	mux.HandleFunc("POST /api/scans/{id}/pages/{n}/rotate", s.handleRotatePage)
 	mux.HandleFunc("POST /api/scans/{id}/pages/{n}/crop", s.handleCropPage)

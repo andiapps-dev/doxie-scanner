@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -394,6 +395,15 @@ func TestStore_RefusesJobIDsThatAreNotAPlainFolderName(t *testing.T) {
 		if err := store.DeletePageFile(id, "p.png"); !errors.Is(err, ErrInvalidID) {
 			t.Errorf("DeletePageFile(%q) = %v, want ErrInvalidID", id, err)
 		}
+		if _, err := store.LoadThumb(id, "t.jpg"); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("LoadThumb(%q) = %v, want ErrInvalidID", id, err)
+		}
+		if err := store.SaveThumb(id, "t.jpg", "t", nil); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("SaveThumb(%q) = %v, want ErrInvalidID", id, err)
+		}
+		if err := store.ClearThumbs(id); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("ClearThumbs(%q) = %v, want ErrInvalidID", id, err)
+		}
 	}
 	if _, err := os.Stat(filepath.Join(victim, "meta.json")); err != nil {
 		t.Errorf("the folder outside jobs/ was touched: %v", err)
@@ -401,5 +411,70 @@ func TestStore_RefusesJobIDsThatAreNotAPlainFolderName(t *testing.T) {
 	// Ordinary ids still work.
 	if err := store.CreateJob(JobMeta{ID: "20261117-150216-4ba5"}); err != nil {
 		t.Errorf("a normal id was refused: %v", err)
+	}
+}
+
+func TestStore_ThumbnailCache(t *testing.T) {
+	store := New(t.TempDir())
+	if err := store.CreateJob(JobMeta{ID: "j"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.LoadThumb("j", "page-001.png.1-2.jpg"); err == nil {
+		t.Error("a thumbnail that was never saved should be missing")
+	}
+
+	// Saving one removes the older versions of the same page, and only those.
+	for _, name := range []string{"page-001.png.10-1.jpg", "page-002.png.10-1.jpg"} {
+		if err := store.SaveThumb("j", name, strings.SplitN(name, ".png.", 2)[0]+".png.", []byte(name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.SaveThumb("j", "page-001.png.20-2.jpg", "page-001.png.", []byte("new")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.LoadThumb("j", "page-001.png.10-1.jpg"); err == nil {
+		t.Error("the older thumbnail of page 1 should have been removed")
+	}
+	if b, err := store.LoadThumb("j", "page-001.png.20-2.jpg"); err != nil || string(b) != "new" {
+		t.Errorf("the new thumbnail: %q, %v", b, err)
+	}
+	if _, err := store.LoadThumb("j", "page-002.png.10-1.jpg"); err != nil {
+		t.Errorf("another page's thumbnail was removed: %v", err)
+	}
+	// A name can't point outside the thumbnail folder.
+	if err := store.SaveThumb("j", "../../escape.jpg", "x", []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(store.Root(), "escape.jpg")); err == nil {
+		t.Error("a thumbnail was written outside its folder")
+	}
+
+	if err := store.ClearThumbs("j"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.LoadThumb("j", "page-002.png.10-1.jpg"); err == nil {
+		t.Error("ClearThumbs should drop every thumbnail")
+	}
+	if err := store.ClearThumbs("j"); err != nil {
+		t.Errorf("clearing an empty cache is not an error: %v", err)
+	}
+}
+
+func TestStore_SaveThumbReportsAFolderItCannotMake(t *testing.T) {
+	root := t.TempDir()
+	store := New(root)
+	_ = store.CreateJob(JobMeta{ID: "j"})
+	// A file where the thumbnails folder would go.
+	if err := os.WriteFile(filepath.Join(root, "jobs", "j", "thumbs"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveThumb("j", "t.jpg", "t", []byte("x")); err == nil {
+		t.Error("expected an error when the folder can't be created")
+	}
+}
+
+func TestOriginalFilename(t *testing.T) {
+	if got := OriginalFilename(7); got != "page-007.orig.png" {
+		t.Errorf("OriginalFilename(7) = %q", got)
 	}
 }

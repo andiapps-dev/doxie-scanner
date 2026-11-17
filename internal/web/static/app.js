@@ -27,6 +27,10 @@
     busyDepth: 0,
     scannerConnected: false,
     scanning: false,
+    // The one delete that is waiting out its Undo window (see scheduleDelete).
+    pendingDelete: null,
+    // What the send form was opened for: {pages, fromBar}.
+    send: null,
   };
 
   const el = (id) => document.getElementById(id);
@@ -49,6 +53,89 @@
         el('busy-overlay').classList.add('d-none');
       }
     }
+  }
+
+  // ---- Toasts and undo ----
+
+  // toast shows a short message at the top of the page that goes away by
+  // itself. kind is a Bootstrap colour (success, danger, warning, info);
+  // action ({label, onClick}) adds a button, as "Undo" does. It returns the
+  // Toast so a caller can hide it early.
+  function toast(message, { kind = 'success', action = null, duration = 4000 } = {}) {
+    const node = document.createElement('div');
+    node.className = `toast align-items-center text-bg-${kind} border-0`;
+    node.setAttribute('role', 'status');
+    node.innerHTML = `
+      <div class="d-flex">
+        <div class="toast-body"></div>
+        ${action ? '<button type="button" class="btn btn-sm btn-light my-auto me-2 toast-action"></button>' : ''}
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>`;
+    node.querySelector('.toast-body').textContent = message;
+    if (action) {
+      const btn = node.querySelector('.toast-action');
+      btn.textContent = action.label;
+      btn.addEventListener('click', () => {
+        action.onClick();
+        t.hide();
+      });
+    }
+    el('toast-area').appendChild(node);
+    const t = new bootstrap.Toast(node, { delay: duration });
+    node.addEventListener('hidden.bs.toast', () => node.remove());
+    t.show();
+    return t;
+  }
+
+  // The window to undo a delete in, in milliseconds. A test can shorten it.
+  const undoMs = () => window.DOXIE_UNDO_MS ?? 8000;
+
+  // scheduleDelete makes a delete undoable. The thing is hidden at once
+  // (hide) and a toast offers Undo; only when that runs out does commit make
+  // the request that really deletes it. Closing the page in the meantime
+  // loses the delete, which is the safe way round. Only one delete waits at
+  // a time: starting another commits the first straight away, so the page
+  // numbers a later request names are never ones an earlier one shifted.
+  async function scheduleDelete({ message, hide, restore, commit, target }) {
+    await flushPendingDelete();
+    const pending = { target, restore, commit, timer: null, toast: null, settled: false };
+    state.pendingDelete = pending;
+    hide();
+    pending.toast = toast(message, {
+      kind: 'dark',
+      duration: undoMs(),
+      action: {
+        label: I18N.t('toast.undo'),
+        onClick: () => {
+          if (pending.settled) return;
+          pending.settled = true;
+          clearTimeout(pending.timer);
+          state.pendingDelete = null;
+          restore();
+        },
+      },
+    });
+    pending.timer = setTimeout(() => settlePending(pending), undoMs());
+  }
+
+  async function settlePending(pending) {
+    if (pending.settled) return;
+    pending.settled = true;
+    clearTimeout(pending.timer);
+    if (state.pendingDelete === pending) state.pendingDelete = null;
+    try {
+      await pending.commit();
+    } catch (e) {
+      toast(e.message, { kind: 'danger' });
+      pending.restore();
+    }
+  }
+
+  function flushPendingDelete() {
+    const pending = state.pendingDelete;
+    if (!pending) return Promise.resolve();
+    if (pending.toast) pending.toast.hide();
+    return settlePending(pending);
   }
 
   // translateErrorCode maps the backend's stable error `code` to a
@@ -86,6 +173,13 @@
     return `/api/scans/${jobId}/pages/${page}?${params}`;
   }
 
+  // The grid and the selection bar show small server-made JPEGs, not the
+  // full pages, which are several megabytes each.
+  function pageThumbUrl(jobId, page) {
+    const params = new URLSearchParams({ v: state.renderNonce });
+    return `/api/scans/${jobId}/pages/${page}/thumb?${params}`;
+  }
+
   // ---- Scanner connection status ----
 
   // updateStartButtonState keeps "Start scan" disabled whenever the
@@ -111,6 +205,7 @@
     el('autorotate-wrap').classList.toggle('d-none', !state.autoRotateAvailable);
     el('job-autorotate-btn').classList.toggle('d-none', !state.autoRotateAvailable);
     el('combine-send-btn').classList.toggle('d-none', !state.paperlessUrl);
+    el('job-send-btn').classList.toggle('d-none', !state.paperlessUrl);
     if (!state.autoRotateRestored && state.autoRotateAvailable) {
       state.autoRotateRestored = true;
       try {
@@ -136,36 +231,67 @@
         badge.textContent = I18N.t('status.connected');
         badge.className = 'badge rounded-pill text-bg-success';
         badge.title = '';
+        showScannerHint('');
       } else {
         badge.textContent = I18N.t('status.notConnected');
         badge.className = 'badge rounded-pill text-bg-danger';
         if (data.error?.message) console.warn(`Scanner status error (${data.error.code || 'unknown'}): ${data.error.message}`);
         badge.title = data.error ? translateErrorCode(data.error.code) : '';
+        const known = ['device_not_found', 'claim_interface_failed'];
+        showScannerHint(I18N.t(`scan.hint.${known.includes(data.error?.code) ? data.error.code : 'other'}`));
       }
     } catch (e) {
       state.scannerConnected = false;
       badge.textContent = I18N.t('status.unknown');
       badge.className = 'badge rounded-pill text-bg-secondary';
+      showScannerHint(I18N.t('scan.hint.unreachable'));
     }
     updateStartButtonState();
   }
 
+  // A line under the new-scan controls that says what to do when the
+  // scanner can't be reached, since the badge alone only says that it can't.
+  function showScannerHint(text) {
+    const hint = el('scanner-hint');
+    hint.textContent = text;
+    hint.classList.toggle('d-none', !text);
+  }
+
   // ---- Scan jobs ----
+
+  // Scans and pages that have been deleted but are still waiting out their
+  // Undo window are hidden from every list, so reloading from the server in
+  // that time can't bring one back on screen.
+  function visibleJobs() {
+    const hidden = state.pendingDelete && state.pendingDelete.target && state.pendingDelete.target.scans;
+    return hidden ? state.jobs.filter((j) => !hidden.has(j.id)) : state.jobs;
+  }
+
+  function pendingHiddenPage(jobId, page) {
+    const t = state.pendingDelete && state.pendingDelete.target;
+    return !!t && t.job === jobId && t.page === page;
+  }
 
   async function loadJobs() {
     const res = await api('/api/scans');
     state.jobs = await res.json();
     renderJobList();
+    // With nothing open, the empty pane's wording depends on whether there
+    // are any scans at all (load paper, or pick one).
+    if (!state.selectedJob) renderJobDetail();
   }
 
   function renderJobList() {
     const list = el('job-list');
     list.innerHTML = '';
-    if (state.jobs.length === 0) {
+    const jobs = visibleJobs();
+    // Nothing to select while there are no scans.
+    el('bulk-toggle-btn').classList.toggle('d-none', jobs.length === 0);
+    if (jobs.length === 0) {
       list.innerHTML = `<div class="list-group-item text-muted">${I18N.t('jobs.empty')}</div>`;
       return;
     }
-    for (const job of state.jobs) {
+    for (const job of jobs) {
       if (state.bulkMode) {
         list.appendChild(renderBulkRow(job));
         continue;
@@ -178,11 +304,12 @@
         item.classList.add('active');
         item.setAttribute('aria-current', 'true');
       }
+      const spinner = job.status === 'running' ? '<span class="spinner-border spinner-border-sm ms-2 mt-1 flex-shrink-0" aria-hidden="true"></span>' : '';
       item.innerHTML = `
         <span>
           <div>${escapeHtml(job.name)}</div>
           <small class="job-meta ${isActive ? '' : 'text-muted'}">${escapeHtml(jobMetaLine(job))}</small>
-        </span>
+        </span>${spinner}
       `;
       item.addEventListener('click', () => selectJob(job.id));
       list.appendChild(item);
@@ -198,7 +325,7 @@
 
   function jobMetaLine(job) {
     const when = new Date(job.createdAt).toLocaleString();
-    return `${when} · ${job.pageCount} ${I18N.t('jobs.pageCountUnit')} · ${I18N.t(`status.${job.status}`)}`;
+    return `${when} · ${I18N.t('jobs.pageCount', { count: job.pageCount })} · ${I18N.t(`status.${job.status}`)}`;
   }
 
   // In select mode each scan is a checkbox row; clicking it ticks it
@@ -223,7 +350,7 @@
   }
 
   function updateBulkBar() {
-    const selectable = state.jobs.filter(bulkSelectable);
+    const selectable = visibleJobs().filter(bulkSelectable);
     const n = state.bulkSelected.size;
     el('bulk-count').textContent = I18N.t('bulk.count', { count: n });
     el('bulk-delete-btn').disabled = n === 0;
@@ -243,7 +370,7 @@
 
   function toggleBulkAll() {
     if (el('bulk-all').checked) {
-      state.bulkSelected = new Set(state.jobs.filter(bulkSelectable).map((j) => j.id));
+      state.bulkSelected = new Set(visibleJobs().filter(bulkSelectable).map((j) => j.id));
     } else {
       state.bulkSelected = new Set();
     }
@@ -275,7 +402,10 @@
     const chosen = state.jobs.filter((j) => state.bulkSelected.has(j.id));
     if (chosen.length === 0) return;
     const pages = chosen.reduce((sum, j) => sum + (j.pageCount || 0), 0);
-    let message = I18N.t('confirm.bulkDelete', { count: chosen.length, pages });
+    let message = I18N.t('confirm.bulkDelete', {
+      scans: I18N.t('count.scan', { count: chosen.length }),
+      pages: I18N.t('count.page', { count: pages }),
+    });
     // Only meaningful when Paperless is set up: pages that never reached it
     // would be gone for good.
     const unsent = chosen.reduce((sum, j) => sum + (j.unsentPages || 0), 0);
@@ -295,9 +425,10 @@
       state.bulkSelected = new Set(skipped.map((x) => x.id));
       await loadJobs();
       updateBulkBar();
+      if (deleted.length > 0) toast(I18N.t('toast.scansDeleted', { count: deleted.length }));
       if (skipped.length > 0) {
         const running = skipped.filter((x) => x.reason === 'scan_running').length;
-        alert(I18N.t('alert.bulkSkipped', { count: skipped.length, running }));
+        toast(I18N.t('alert.bulkSkipped', { scans: I18N.t('count.scan', { count: skipped.length }), running }), { kind: 'warning', duration: 7000 });
       }
     });
     if (state.bulkSelected.size === 0) setBulkMode(false);
@@ -311,23 +442,33 @@
     renderJobList();
     renderJobDetail();
     watchSent(jobId);
+    // On a phone the scan opens in place of the list: start at its top.
+    if (window.matchMedia('(max-width: 991.98px)').matches) window.scrollTo(0, 0);
   }
 
   function renderJobDetail() {
     const job = state.selectedJob;
+    // On a phone only one of the list and the open scan shows at a time.
+    document.body.classList.toggle('job-open', !!job);
     if (!job) {
+      el('job-detail-empty').textContent = I18N.t(visibleJobs().length === 0 ? 'jobs.emptyPrompt' : 'jobs.selectPrompt');
       el('job-detail-empty').classList.remove('d-none');
       el('job-detail').classList.add('d-none');
       return;
     }
     el('job-detail-empty').classList.add('d-none');
     el('job-detail').classList.remove('d-none');
-    el('job-name-input').value = job.name;
+    // Don't overwrite a name that is being typed: this runs again whenever
+    // the scan is reloaded, including by the Paperless status refresh.
+    const nameInput = el('job-name-input');
+    if (document.activeElement !== nameInput) nameInput.value = job.name;
+    updateRenameButton();
     renderSentList(job);
 
     const grid = el('page-grid');
     grid.innerHTML = '';
-    const pages = job.pages || [];
+    const pages = (job.pages || []).filter((p) => !pendingHiddenPage(job.id, p.index));
+    updateGridHeader(job.id, pages);
     if (pages.length === 0) {
       grid.innerHTML = `<p class="text-muted">${I18N.t('jobDetail.noPages')}</p>`;
       return;
@@ -335,6 +476,52 @@
     for (const page of pages) {
       grid.appendChild(renderPageThumbnail(job.id, page));
     }
+  }
+
+  // Select all / Clear above the page grid: the former while some of this
+  // scan's pages are not selected, the latter while any is.
+  function updateGridHeader(jobId, pages) {
+    const selected = pages.filter((p) => state.combineSelection.has(combineKey(jobId, p.index))).length;
+    el('grid-select-all').classList.toggle('d-none', pages.length === 0 || selected === pages.length);
+    el('grid-select-none').classList.toggle('d-none', selected === 0);
+  }
+
+  function selectAllPages() {
+    const job = state.selectedJob;
+    if (!job) return;
+    for (const p of job.pages || []) {
+      if (pendingHiddenPage(job.id, p.index)) continue;
+      const key = combineKey(job.id, p.index);
+      if (!state.combineSelection.has(key)) {
+        state.combineSelection.set(key, { jobId: job.id, page: p.index });
+        state.combineOrder.push(key);
+      }
+    }
+    renderJobDetail();
+    renderCombineBar();
+  }
+
+  function clearScanSelection() {
+    const job = state.selectedJob;
+    if (!job) return;
+    state.combineOrder = state.combineOrder.filter((k) => {
+      const entry = state.combineSelection.get(k);
+      if (entry && entry.jobId === job.id) {
+        state.combineSelection.delete(k);
+        return false;
+      }
+      return true;
+    });
+    renderJobDetail();
+    renderCombineBar();
+  }
+
+  // The Save button beside the scan's name shows only while the name has
+  // been changed, so the header isn't carrying a second button for nothing.
+  function updateRenameButton() {
+    const job = state.selectedJob;
+    const typed = el('job-name-input').value.trim();
+    el('job-rename-btn').classList.toggle('d-none', !job || !typed || typed === job.name);
   }
 
   // renderPageThumbnail renders one thumbnail per page. Duplex scanning
@@ -349,7 +536,7 @@
 
     const key = combineKey(jobId, page.index);
     const selected = state.combineSelection.has(key);
-    const src = pageImageUrl(jobId, page.index);
+    const src = pageThumbUrl(jobId, page.index);
     const label = I18N.t('page.label', { n: page.index });
     const badges = [];
     if (page.autoCrop) badges.push(`✂ ${I18N.t('page.autoCroppedBadge')}`);
@@ -357,7 +544,7 @@
     if (sentPageSet(state.selectedJob).has(page.index)) badges.push(`✓ ${I18N.t('page.sentBadge')}`);
 
     thumbnail.innerHTML = `
-      <img class="page-thumb" src="${src}" alt="${label}">
+      <img class="page-thumb" src="${src}" alt="${label}" loading="lazy">
       <div class="page-thumbnail-overlay">
         <input type="checkbox" class="form-check-input combine-check" ${selected ? 'checked' : ''} title="${I18N.t('modal.selectForCombine')}">
       </div>
@@ -451,6 +638,7 @@
     const bar = el('combine-bar');
     const count = state.combineOrder.length;
     el('combine-count-text').textContent = I18N.t('combine.selected', { count });
+    if (state.selectedJob) updateGridHeader(state.selectedJob.id, (state.selectedJob.pages || []).filter((p) => !pendingHiddenPage(state.selectedJob.id, p.index)));
     bar.classList.toggle('d-none', count === 0);
 
     const thumbs = el('combine-thumbs');
@@ -476,7 +664,7 @@
     thumbnail.draggable = true;
     thumbnail.dataset.key = key;
 
-    const src = pageImageUrl(entry.jobId, entry.page);
+    const src = pageThumbUrl(entry.jobId, entry.page);
     thumbnail.innerHTML = `
       <img src="${src}" alt="${I18N.t('combine.thumbAlt', { n: position })}">
       <button type="button" class="combine-thumb-remove" title="${I18N.t('combine.removeTitle')}">&times;</button>
@@ -540,7 +728,20 @@
     el('pm-combine-check').checked = state.combineSelection.has(combineKey(jobId, page));
     const meta = ((state.selectedJob && state.selectedJob.id === jobId && state.selectedJob.pages) || []).find((p) => p.index === page);
     el('pm-restore').classList.toggle('d-none', !(meta && meta.original));
+    renderViewerState(jobId, page, meta);
     updateViewerNav();
+  }
+
+  // Under the viewer's title: what has been done to this page, so it
+  // doesn't have to be guessed from the picture.
+  function renderViewerState(jobId, page, meta) {
+    const chips = [];
+    if (meta && meta.autoCrop) chips.push(`✂ ${I18N.t('page.autoCroppedBadge')}`);
+    if (meta && meta.autoRotated) chips.push(`↻ ${I18N.t('page.autoRotatedBadge')}`);
+    if (state.selectedJob && state.selectedJob.id === jobId && sentPageSet(state.selectedJob).has(page)) {
+      chips.push(`✓ ${I18N.t('page.sentBadge')}`);
+    }
+    el('pm-state').innerHTML = chips.map((c) => `<span class="badge text-bg-light border">${escapeHtml(c)}</span>`).join(' ');
   }
 
   // The pages the viewer can step through: the open scan's, in the order
@@ -726,23 +927,41 @@
     state.combineSelection = selection;
   }
 
+  // dropFromSelection takes one page out of the selection bar.
+  function dropFromSelection(jobId, page) {
+    const key = combineKey(jobId, page);
+    state.combineSelection.delete(key);
+    state.combineOrder = state.combineOrder.filter((k) => k !== key);
+  }
+
+  // Deleting a page hides it at once and offers Undo; the page is only
+  // really deleted when the Undo window has passed (see scheduleDelete).
   async function deleteCurrentPage() {
     if (!state.viewer) return;
     const { jobId, page } = state.viewer;
-    if (!confirm(I18N.t('confirm.deletePage'))) return;
-    await withBusy(async () => {
-      // The server renumbers the remaining pages by their position, so the
-      // selection (kept by page number) must follow, or "send" and
-      // "combine" would pick the wrong pages afterwards.
-      const remaining = ((state.selectedJob && state.selectedJob.id === jobId && state.selectedJob.pages) || [])
-        .filter((p) => p.index !== page);
-      const newIndex = new Map(remaining.map((p, i) => [p.index, i + 1]));
-      await api(`/api/scans/${jobId}/pages/${page}`, { method: 'DELETE' });
-      renumberSelection(jobId, newIndex);
-      renderCombineBar();
-      pageModal().hide();
-      await selectJob(jobId);
-      await loadJobs();
+    // The server renumbers the remaining pages by their position, so the
+    // selection (kept by page number) must follow once it has, or "send" and
+    // "combine" would pick the wrong pages afterwards.
+    const remaining = ((state.selectedJob && state.selectedJob.id === jobId && state.selectedJob.pages) || [])
+      .filter((p) => p.index !== page);
+    const newIndex = new Map(remaining.map((p, i) => [p.index, i + 1]));
+    pageModal().hide();
+    await scheduleDelete({
+      message: I18N.t('toast.pageDeleted'),
+      target: { job: jobId, page },
+      hide: () => {
+        dropFromSelection(jobId, page);
+        renderJobDetail();
+        renderCombineBar();
+      },
+      restore: () => renderJobDetail(),
+      commit: async () => {
+        await api(`/api/scans/${jobId}/pages/${page}`, { method: 'DELETE' });
+        renumberSelection(jobId, newIndex);
+        renderCombineBar();
+        if (state.selectedJobId === jobId) await selectJob(jobId);
+        await loadJobs();
+      },
     });
   }
 
@@ -776,14 +995,14 @@
     await downloadCombinedPDF(pages, title, el('combine-format').value);
   }
 
-  async function exportWholeScan() {
+  async function exportWholeScan(format = 'jpeg') {
     const job = state.selectedJob;
     if (!job || !job.pages || job.pages.length === 0) {
-      alert(I18N.t('alert.noPages'));
+      toast(I18N.t('alert.noPages'), { kind: 'warning' });
       return;
     }
     const pages = job.pages.map((p) => ({ jobId: job.id, page: p.index }));
-    await downloadCombinedPDF(pages, job.name, el('job-export-format').value);
+    await downloadCombinedPDF(pages, job.name, format);
   }
 
   // ---- Auto-rotate ----
@@ -797,7 +1016,8 @@
       const updated = await res.json();
       const turned = (updated.pages || []).filter((p, i) => (p.autoRotated || 0) !== before[i]).length;
       await selectJob(job.id);
-      alert(I18N.t(turned ? 'jobDetail.autoRotated' : 'jobDetail.noneRotated', { n: turned }));
+      if (turned) toast(I18N.t('jobDetail.autoRotated', { count: turned }));
+      else toast(I18N.t('jobDetail.noneRotated'), { kind: 'info' });
     });
   }
 
@@ -809,7 +1029,8 @@
       const updated = await res.json();
       const cropped = (updated.pages || []).filter((p, i) => !!p.autoCrop !== !!(job.pages[i] && job.pages[i].autoCrop)).length;
       await selectJob(job.id);
-      alert(I18N.t(cropped ? 'jobDetail.autoCropped' : 'jobDetail.noneCropped', { n: cropped }));
+      if (cropped) toast(I18N.t('jobDetail.autoCropped', { count: cropped }));
+      else toast(I18N.t('jobDetail.noneCropped'), { kind: 'info' });
     });
   }
 
@@ -822,6 +1043,7 @@
       await api(`/api/scans/${jobId}/pages/${page}/restore`, { method: 'POST' });
       await selectJob(jobId);
       loadViewerImage();
+      toast(I18N.t('toast.restored'));
     });
   }
 
@@ -855,7 +1077,7 @@
         status += `: ${escapeHtml(d.error)}`;
       }
       const cls = d.status === 'failed' ? 'text-danger' : d.status === 'done' ? 'text-success' : 'text-muted';
-      return `<li><strong>${escapeHtml(d.title)}</strong> <span class="text-muted">(${I18N.t('sent.pages', { pages: (d.pages || []).join(', ') })})</span> <span class="${cls}">${status}</span></li>`;
+      return `<li><strong>${escapeHtml(d.title)}</strong> <span class="text-muted">(${I18N.t('sent.pages', { count: (d.pages || []).length, pages: (d.pages || []).join(', ') })})</span> <span class="${cls}">${status}</span></li>`;
     });
     box.innerHTML = `<div class="small"><div class="fw-semibold">${I18N.t('sent.heading')}</div><ul class="mb-0 ps-3">${rows.join('')}</ul></div>`;
   }
@@ -905,12 +1127,35 @@
     }
   }
 
-  async function openSendDialog() {
-    const pages = selectedPagesInOrder();
+  // Tags are toggle chips: a multi-select list box needs Ctrl-click, which
+  // is hard to do at all on a phone.
+  function fillTags(container, items) {
+    container.innerHTML = '';
+    for (const it of items) {
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.className = 'btn-check';
+      input.id = `send-tag-${it.id}`;
+      input.value = String(it.id);
+      input.autocomplete = 'off';
+      const label = document.createElement('label');
+      label.className = 'btn btn-sm btn-outline-primary';
+      label.htmlFor = input.id;
+      label.textContent = it.name;
+      container.append(input, label);
+    }
+  }
+
+  // openSendDialog opens the send form for pages: by default the selection
+  // bar's pages, or (from a scan's own button) that scan's pages. The pages
+  // are kept in state.send so the form sends what it was opened for, and
+  // only a send from the selection bar clears that selection afterwards.
+  async function openSendDialog(pages = selectedPagesInOrder(), title = el('combine-title').value.trim(), fromBar = true) {
     if (pages.length === 0) return;
+    state.send = { pages, fromBar };
     el('send-error').classList.add('d-none');
     el('send-summary').textContent = I18N.t('send.summary', { count: pages.length });
-    el('send-title').value = el('combine-title').value.trim();
+    el('send-title').value = title;
     el('send-created').value = '';
     try {
       await withBusy(async () => {
@@ -919,18 +1164,29 @@
         const none = I18N.t('send.letPaperless');
         fillSelect(el('send-correspondent'), m.correspondents || [], none);
         fillSelect(el('send-doctype'), m.documentTypes || [], none);
-        fillSelect(el('send-tags'), m.tags || [], '');
+        fillTags(el('send-tags'), m.tags || []);
       });
     } catch (e) {
-      alert(`${I18N.t('send.loadFailed')} ${e.message}`);
+      toast(`${I18N.t('send.loadFailed')} ${e.message}`, { kind: 'danger', duration: 7000 });
       return;
     }
     bootstrap.Modal.getOrCreateInstance(el('send-modal')).show();
   }
 
+  // Sends the open scan from its own button. Pages not yet in Paperless are
+  // the ones to send; if all of them are already there, all of them.
+  function sendScanToPaperless() {
+    const job = state.selectedJob;
+    if (!job || !(job.pages || []).length) return;
+    const sent = sentPageSet(job);
+    let pick = job.pages.filter((p) => !sent.has(p.index));
+    if (pick.length === 0) pick = job.pages;
+    return openSendDialog(pick.map((p) => ({ jobId: job.id, page: p.index })), job.name, false);
+  }
+
   async function submitSend() {
-    const pages = selectedPagesInOrder();
-    const tags = Array.from(el('send-tags').selectedOptions).map((o) => Number(o.value));
+    const { pages, fromBar } = state.send;
+    const tags = Array.from(el('send-tags').querySelectorAll('input:checked')).map((i) => Number(i.value));
     const body = {
       pages,
       title: el('send-title').value.trim(),
@@ -958,9 +1214,13 @@
       btn.textContent = I18N.t('send.submit');
     }
     bootstrap.Modal.getOrCreateInstance(el('send-modal')).hide();
-    state.combineSelection.clear();
-    state.combineOrder = [];
-    renderCombineBar();
+    const sentAs = body.title || (state.jobs.find((j) => j.id === pages[0].jobId) || {}).name || '';
+    toast(I18N.t('toast.sent', { count: pages.length, title: sentAs }));
+    if (fromBar) {
+      state.combineSelection.clear();
+      state.combineOrder = [];
+      renderCombineBar();
+    }
     await loadJobs();
     if (state.selectedJobId) await selectJob(state.selectedJobId);
   }
@@ -976,6 +1236,7 @@
       localStorage.setItem('doxie-autocrop', autoCrop ? '1' : '0');
     } catch (e) { /* per-viewer convenience only */ }
     state.scanning = true;
+    document.body.classList.add('scanning');
     updateStartButtonState();
     try {
       const res = await api('/api/scans', {
@@ -986,8 +1247,9 @@
       const data = await res.json();
       watchScanProgress(data.jobId);
     } catch (e) {
-      alert(e.message);
+      toast(e.message, { kind: 'danger', duration: 7000 });
       state.scanning = false;
+      document.body.classList.remove('scanning');
       updateStartButtonState();
     }
   }
@@ -1028,10 +1290,14 @@
   function watchScanProgress(jobId) {
     showScanProgress(I18N.t('scan.stage.starting'), null);
     if (state.scanPollTimer) clearInterval(state.scanPollTimer);
+    let tick = 0;
     state.scanPollTimer = setInterval(async () => {
       const res = await api(`/api/scans/${jobId}`);
       const job = await res.json();
       if (job.status === 'running') {
+        // The running scan shows up in the list (with a spinner) a few
+        // seconds in, rather than only once it has finished.
+        if (++tick % 4 === 1) loadJobs().catch(() => {});
         const counted = (job.stage === 'rotating' || job.stage === 'cropping') && job.stageTotal > 0;
         showScanProgress(scanProgressText(job), counted ? (job.stageDone - 1) / job.stageTotal : null);
         return;
@@ -1039,6 +1305,7 @@
       clearInterval(state.scanPollTimer);
       state.scanPollTimer = null;
       state.scanning = false;
+      document.body.classList.remove('scanning');
       updateStartButtonState();
       showScanProgress(I18N.t('scan.stage.loading'), null);
       try {
@@ -1061,17 +1328,31 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
+    if (state.selectedJob) state.selectedJob.name = name;
+    updateRenameButton();
     await loadJobs();
   }
 
+  // Deleting a scan hides it at once and offers Undo; it is only really
+  // deleted when the Undo window has passed (see scheduleDelete).
   async function deleteJob() {
-    if (!state.selectedJobId) return;
-    if (!confirm(I18N.t('confirm.deleteScan'))) return;
-    await withBusy(async () => {
-      const id = state.selectedJobId;
-      await api(`/api/scans/${id}`, { method: 'DELETE' });
-      forgetScans(new Set([id]));
-      await loadJobs();
+    const id = state.selectedJobId;
+    if (!id) return;
+    await scheduleDelete({
+      message: I18N.t('toast.scanDeleted'),
+      target: { scans: new Set([id]) },
+      hide: () => {
+        forgetScans(new Set([id]));
+        renderJobList();
+      },
+      restore: () => {
+        renderJobList();
+        renderJobDetail();
+      },
+      commit: async () => {
+        await api(`/api/scans/${id}`, { method: 'DELETE' });
+        await loadJobs();
+      },
     });
   }
 
@@ -1090,7 +1371,8 @@
   el('job-autorotate-btn').addEventListener('click', autoRotateScan);
   el('job-autocrop-btn').addEventListener('click', autoCropScan);
   el('pm-restore').addEventListener('click', restoreCurrentPage);
-  el('combine-send-btn').addEventListener('click', openSendDialog);
+  el('combine-send-btn').addEventListener('click', () => openSendDialog());
+  el('job-send-btn').addEventListener('click', sendScanToPaperless);
   el('send-submit').addEventListener('click', submitSend);
   el('pm-prev').setAttribute('aria-label', I18N.t('modal.prevPage'));
   el('pm-next').setAttribute('aria-label', I18N.t('modal.nextPage'));
@@ -1105,8 +1387,24 @@
     if (e.key === 'ArrowRight') { stepViewer(1); e.preventDefault(); }
   });
   el('job-rename-btn').addEventListener('click', renameJob);
+  el('job-name-input').addEventListener('input', updateRenameButton);
+  el('job-name-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); renameJob(); }
+    if (e.key === 'Escape' && state.selectedJob) { el('job-name-input').value = state.selectedJob.name; updateRenameButton(); }
+  });
   el('job-delete-btn').addEventListener('click', deleteJob);
-  el('job-export-pdf-btn').addEventListener('click', exportWholeScan);
+  el('job-export-pdf-btn').addEventListener('click', () => exportWholeScan('jpeg'));
+  document.querySelectorAll('.job-export-fmt').forEach((b) => b.addEventListener('click', () => exportWholeScan(b.dataset.fmt)));
+  el('job-back-btn').addEventListener('click', async () => {
+    await flushPendingDelete();
+    state.selectedJobId = null;
+    state.selectedJob = null;
+    renderJobList();
+    renderJobDetail();
+    window.scrollTo(0, 0);
+  });
+  el('grid-select-all').addEventListener('click', selectAllPages);
+  el('grid-select-none').addEventListener('click', clearScanSelection);
   el('combine-btn').addEventListener('click', combineSelected);
   el('combine-clear-btn').addEventListener('click', () => {
     state.combineSelection.clear();

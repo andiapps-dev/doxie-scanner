@@ -61,8 +61,33 @@ like `v1.2.0`, and each one gets its own section below.
   paper jam, the cover open, two sheets fed at once, or a sheet stopped
   partway through.
 
+- **Thumbnails from the server.** The page grid and the selection bar show
+  small cached JPEGs (`GET /api/scans/{id}/pages/{n}/thumb`) instead of
+  loading each full page, which is 5 to 14 MB. Their cache can't go stale:
+  it is keyed by the page file's size and modified time.
+- **Undo for deletes.** Deleting a page or a scan hides it at once and offers
+  Undo for 8 seconds before it is really deleted, replacing the
+  confirmation box. Closing the page in that time leaves it undeleted.
+- A running scan appears in the scan list, with a spinner, a few seconds in.
+- When the scanner can't be reached, the new-scan card says what to try, by
+  reason. With no scans yet, the empty pane says to load paper and press Start.
+- Messages (sent, trimmed, restored, deleted) are toasts, not pop-up boxes,
+  and counts read "1 page" and "3 pages" rather than "page(s)".
+
 ### Changed
 
+- **The interface was reworked for clarity and for phones**, from a review of
+  every screen at desktop and phone width. On a phone the scan list and the
+  open scan take turns, with a back button, instead of stacking the scan far
+  below the list; the scan header no longer runs off the screen. A scan's
+  header holds its name (edited in place, with Save only while changed), one
+  primary action, *Export PDF* and a *⋯* menu for auto-crop, auto-rotate and
+  delete, in place of a row of eight buttons. Outline buttons are readable
+  rather than pale enough to look disabled. The page viewer groups editing on
+  the left and sharing on the right and shows what was done to the page.
+  Pages have a visible tick-box with *Select all*. "Select for combine" is
+  now "Select page", since the same selection feeds Send. Paperless tags are
+  toggle chips instead of a multi-select list box.
 - **The scanner driver is now the one for Doxie's own protocol**, adapted
   from the jasonlearst/doxie-scanner fork (credited in the README): the
   vendor's 12-byte command set, with the scanner JPEG-encoding each side

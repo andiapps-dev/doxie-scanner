@@ -35,8 +35,17 @@
   // {name} placeholders from vars. Falls back to the raw key itself if
   // the dictionary is missing the entry, so a translation gap is visibly
   // obvious rather than silently blank.
+  //
+  // A numeric vars.count picks a plural form: "<key>_one" for exactly 1,
+  // otherwise "<key>_other", when the dictionary has them, so a message can
+  // say "1 page" and "3 pages" instead of "page(s)". A key with no such
+  // forms is used as it is.
   function t(key, vars) {
-    const value = lookup(dict, key);
+    let value;
+    if (vars && typeof vars.count === 'number') {
+      value = lookup(dict, `${key}${vars.count === 1 ? '_one' : '_other'}`);
+    }
+    if (typeof value !== 'string') value = lookup(dict, key);
     if (typeof value !== 'string') return key;
     return interpolate(value, vars);
   }

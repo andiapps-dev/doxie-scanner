@@ -48,6 +48,19 @@
 
 .page-thumbnail-overlay .form-check-input {
   pointer-events: auto;
+  /* A thumbnail's tick-box has to be easy to see and to hit: it is the way
+     to pick pages for Send, Combine and Select all. */
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  border: 2px solid var(--bs-primary);
+  background-color: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.page-thumbnail-overlay .form-check-input:checked {
+  background-color: var(--bs-primary);
 }
 
 .page-thumbnail-footer {
@@ -175,7 +188,7 @@
 
 /* Small status notes under a page thumbnail: auto-rotated, already in Paperless. */
 .page-thumbnail-badges {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--bs-success-text-emphasis, var(--bs-secondary-color));
 }
 
@@ -185,4 +198,195 @@
   font-size: 1.5rem;
   line-height: 1;
   padding: 0.15rem 0.75rem;
+}
+
+/* ---- Buttons that read as buttons ----
+   Bootswatch Flatly draws outline-secondary in a pale gray that looks
+   disabled. Use the dark gray-blue of its text instead, so a button that
+   can be pressed looks it, and keep the real disabled look for the ones
+   that can't. */
+.btn-outline-secondary {
+  --bs-btn-color: #2c3e50;
+  --bs-btn-border-color: #7b8a8b;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #2c3e50;
+  --bs-btn-hover-border-color: #2c3e50;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #2c3e50;
+  --bs-btn-active-border-color: #2c3e50;
+  --bs-btn-disabled-color: #95a5a6;
+  --bs-btn-disabled-border-color: #cfd6d8;
+}
+
+.btn-link {
+  --bs-btn-color: var(--bs-primary);
+  --bs-btn-hover-color: #1a252f;
+}
+
+/* ---- A scan's header: its name, then the few things done with it ---- */
+.job-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.job-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+/* The scan's name is edited where it is: it looks like a heading until
+   it is hovered or focused. */
+.job-title-input {
+  font-size: 1.3rem;
+  font-weight: 500;
+  padding: 0.15rem 0.4rem;
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.job-title-input:hover {
+  border-color: var(--bs-border-color);
+}
+
+.job-title-input:focus {
+  background: #fff;
+}
+
+.job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.grid-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ---- The page viewer's actions: editing on the left, the rest on the right ---- */
+.pm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pm-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.pm-group-end {
+  margin-left: auto;
+}
+
+.pm-state {
+  min-height: 1.3rem;
+  font-size: 0.75rem;
+}
+
+.pm-state .badge {
+  font-weight: 500;
+}
+
+/* ---- The selection bar ---- */
+.combine-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#combine-title {
+  flex: 1 1 12rem;
+  max-width: 22rem;
+}
+
+#combine-format {
+  width: auto;
+}
+
+/* ---- Tags in the send dialog: toggle chips, not a list box ---- */
+.send-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+/* ---- Toasts sit above the page's own overlays ---- */
+#toast-area {
+  z-index: 2100;
+}
+
+#toast-area .toast {
+  min-width: 18rem;
+}
+
+/* ---- Phones ----
+   Below the large breakpoint the list and the open scan stack, which put the
+   scan far below the list with nothing to show it had opened. Show one at a
+   time instead: the list, or the open scan with a back button. The
+   new-scan card steps aside while a scan is open, except during a scan,
+   when it is where the progress shows. */
+@media (max-width: 991.98px) {
+  body.job-open #scan-list-col {
+    display: none;
+  }
+
+  body.job-open:not(.scanning) #new-scan-card {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  #page-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0.6rem;
+  }
+
+  .job-actions {
+    width: 100%;
+  }
+
+  .job-actions > .btn-primary {
+    flex: 1 1 auto;
+  }
+
+  /* Icon-only rotate buttons: the viewer's footer is narrow. */
+  .pm-label {
+    display: none;
+  }
+
+  .pm-group-end {
+    margin-left: 0;
+  }
+
+  .combine-thumb {
+    width: 44px;
+  }
+
+  .combine-thumb img {
+    width: 44px;
+    height: 58px;
+  }
+
+  #combine-title {
+    max-width: none;
+  }
 }

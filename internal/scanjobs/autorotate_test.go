@@ -252,3 +252,14 @@ func TestAutoRotate_IgnoresAnAnswerThatIsNotAQuarterTurn(t *testing.T) {
 		t.Errorf("n=%d err=%v page=%+v: a 45° answer should be ignored", n, err, meta.Pages[0])
 	}
 }
+
+func TestManager_OrienterIsWhatWasGiven(t *testing.T) {
+	m, _ := newTestManager(t, &fakeDriver{session: &fakeSession{}})
+	if m.Orienter() != nil || m.CanAutoRotate() {
+		t.Error("a new manager has no detector")
+	}
+	m.WithOrienter(detectByWidth)
+	if m.Orienter() == nil || !m.CanAutoRotate() {
+		t.Error("the detector given to WithOrienter should be reported")
+	}
+}

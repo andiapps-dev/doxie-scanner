@@ -196,6 +196,51 @@ func (s *Store) DeletePageFile(jobID, filename string) error {
 	return nil
 }
 
+func (s *Store) thumbsDir(id string) string { return filepath.Join(s.jobDir(id), "thumbs") }
+
+// LoadThumb reads a cached thumbnail by name, or reports it missing.
+func (s *Store) LoadThumb(jobID, name string) ([]byte, error) {
+	if !validJobID(jobID) {
+		return nil, ErrInvalidID
+	}
+	return os.ReadFile(filepath.Join(s.thumbsDir(jobID), filepath.Base(name)))
+}
+
+// SaveThumb caches a thumbnail under name, and removes any other cached
+// thumbnail whose name starts with prefix (the older versions of the same
+// page, which can't be asked for again).
+func (s *Store) SaveThumb(jobID, name, prefix string, data []byte) error {
+	if !validJobID(jobID) {
+		return ErrInvalidID
+	}
+	dir := s.thumbsDir(jobID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("storage: create thumbnail folder for job %q: %w", jobID, err)
+	}
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			if e.Name() != name && strings.HasPrefix(e.Name(), prefix) {
+				_ = os.Remove(filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, filepath.Base(name)), data, 0o644); err != nil {
+		return fmt.Errorf("storage: write thumbnail for job %q: %w", jobID, err)
+	}
+	return nil
+}
+
+// ClearThumbs drops every cached thumbnail of a job. They are only a
+// cache: the next request makes them again. Used when pages are
+// renumbered, so a thumbnail can't be left under a file name that now
+// holds a different page.
+func (s *Store) ClearThumbs(jobID string) error {
+	if !validJobID(jobID) {
+		return ErrInvalidID
+	}
+	return os.RemoveAll(s.thumbsDir(jobID))
+}
+
 // DeleteJob removes a job's entire directory (metadata and all pages).
 func (s *Store) DeleteJob(id string) error {
 	if !validJobID(id) {
