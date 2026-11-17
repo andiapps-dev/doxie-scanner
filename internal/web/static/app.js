@@ -478,10 +478,35 @@
 
   // Select all / Clear above the page grid: the former while some of this
   // scan's pages are not selected, the latter while any is.
+  // The first line of each export menu says exactly which pages it will
+  // export, so nobody has to guess what a click is about to do.
+  function updateExportScope() {
+    const job = state.selectedJob;
+    const jobScope = document.querySelector('.export-scope[data-scope="job"]');
+    if (jobScope) {
+      if (!job) {
+        jobScope.textContent = '';
+      } else {
+        const ticked = state.combineOrder.filter((k) => (state.combineSelection.get(k) || {}).jobId === job.id).length;
+        const total = (job.pages || []).filter((p) => !pendingHiddenPage(job.id, p.index)).length;
+        jobScope.textContent = ticked > 0
+          ? I18N.t('export.scopeSelected', { count: ticked })
+          : I18N.t('export.scopeAll', { count: total });
+      }
+    }
+    const barScope = document.querySelector('.export-scope[data-scope="bar"]');
+    if (barScope) barScope.textContent = I18N.t('export.scopeSelected', { count: state.combineOrder.length });
+  }
+
   function updateGridHeader(jobId, pages) {
+    updateExportScope();
     const selected = pages.filter((p) => state.combineSelection.has(combineKey(jobId, p.index))).length;
     el('grid-select-all').classList.toggle('d-none', pages.length === 0 || selected === pages.length);
     el('grid-select-none').classList.toggle('d-none', selected === 0);
+    // With pages ticked, the header's export acts on just those.
+    el('job-export-pdf-btn').textContent = selected > 0
+      ? I18N.t('export.buttonSelected', { count: selected })
+      : I18N.t('jobDetail.exportPdf');
   }
 
   function selectAllPages() {
@@ -788,6 +813,7 @@
     const bar = el('combine-bar');
     const count = state.combineOrder.length;
     el('combine-count-text').textContent = I18N.t('combine.selected', { count });
+    updateExportScope();
     if (state.selectedJob) updateGridHeader(state.selectedJob.id, (state.selectedJob.pages || []).filter((p) => !pendingHiddenPage(state.selectedJob.id, p.index)));
     bar.classList.toggle('d-none', count === 0);
 
@@ -1177,7 +1203,13 @@
       toast(I18N.t('alert.noPages'), { kind: 'warning' });
       return;
     }
-    const pages = job.pages.map((p) => ({ jobId: job.id, page: p.index }));
+    // Ticked pages of this scan (in the order they were ticked) win over
+    // "everything", so exporting what you selected gives what you selected.
+    const ticked = state.combineOrder
+      .map((key) => state.combineSelection.get(key))
+      .filter((p) => p && p.jobId === job.id)
+      .map((p) => ({ jobId: p.jobId, page: p.page }));
+    const pages = ticked.length > 0 ? ticked : job.pages.map((p) => ({ jobId: job.id, page: p.index }));
     await exportPages(pages, job.name, opt);
   }
 

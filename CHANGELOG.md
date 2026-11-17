@@ -9,6 +9,12 @@ like `v1.2.0`, and each one gets its own section below.
 
 ### Added
 
+- **Export menus say what they will export.** Ticking two of three pages and
+  choosing the scan header's export gave all three, because that menu always
+  meant "the whole scan". The header export now acts on the ticked pages of
+  that scan when there are any (its button reads "Export 2 selected pages"),
+  and both export menus start with a line stating exactly what they will
+  export, such as "Exports the 2 selected pages" or "Exports all 4 pages of this scan".
 - **Export pages as separate images.** Choosing JPEG or PNG for several selected
   pages always produced a PDF: that menu only set the image format *inside* the
   PDF. The selection bar's *Export* button now has a menu with two clear groups,

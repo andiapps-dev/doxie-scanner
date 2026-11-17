@@ -209,6 +209,12 @@
   "export": {
     "button": "Exportar PDF",
     "pdfGroup": "PDF",
-    "imagesGroup": "Imágenes separadas (ZIP)"
+    "imagesGroup": "Imágenes separadas (ZIP)",
+    "buttonSelected_one": "Exportar {count} página seleccionada",
+    "buttonSelected_other": "Exportar {count} páginas seleccionadas",
+    "scopeSelected_one": "Exporta la {count} página seleccionada",
+    "scopeSelected_other": "Exporta las {count} páginas seleccionadas",
+    "scopeAll_one": "Exporta la {count} página de este escaneo",
+    "scopeAll_other": "Exporta las {count} páginas de este escaneo"
   }
 }

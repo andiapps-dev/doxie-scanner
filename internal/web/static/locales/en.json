@@ -209,6 +209,12 @@
   "export": {
     "button": "Export PDF",
     "pdfGroup": "PDF",
-    "imagesGroup": "Separate images (ZIP)"
+    "imagesGroup": "Separate images (ZIP)",
+    "buttonSelected_one": "Export {count} selected page",
+    "buttonSelected_other": "Export {count} selected pages",
+    "scopeSelected_one": "Exports the {count} selected page",
+    "scopeSelected_other": "Exports the {count} selected pages",
+    "scopeAll_one": "Exports all {count} page of this scan",
+    "scopeAll_other": "Exports all {count} pages of this scan"
   }
 }
