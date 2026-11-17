@@ -3,3 +3,4 @@ package-lock.json
 test-results/
 results.json
 output/*.webm
+__pycache__/
