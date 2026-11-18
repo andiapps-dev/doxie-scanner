@@ -89,7 +89,9 @@
     "sendButton": "Enviar a Paperless…",
     "selected_one": "{count} página seleccionada",
     "selected_other": "{count} páginas seleccionadas",
-    "hint": "Arrastre las miniaturas para reordenarlas."
+    "hint": "Arrastre las miniaturas para reordenarlas.",
+    "rotateLeft": "Girar las páginas seleccionadas a la izquierda",
+    "rotateRight": "Girar las páginas seleccionadas a la derecha"
   },
   "page": {
     "label": "Página {n}",
@@ -127,12 +129,24 @@
   },
   "confirm": {
     "bulkDelete": "¿Eliminar {scans} y sus {pages}? No se puede deshacer.",
-    "bulkUnsent_one": "{count} de esas páginas nunca se envió a Paperless.",
-    "bulkUnsent_other": "{count} de esas páginas nunca se enviaron a Paperless."
+    "deleteScanTitle": "¿Eliminar este escaneo?",
+    "deleteScan": "Se eliminarán este escaneo y sus {pages}. No se puede deshacer.",
+    "deleteScansTitle_one": "¿Eliminar {count} escaneo?",
+    "deleteScansTitle_other": "¿Eliminar {count} escaneos?",
+    "deleteN_one": "Eliminar {count} escaneo",
+    "deleteN_other": "Eliminar {count} escaneos",
+    "deletePageTitle": "¿Eliminar esta página?",
+    "deletePage": "Se eliminará la página {n} de {total} de este escaneo. No se puede deshacer.",
+    "unsent_one": "{count} de estas páginas nunca se envió a Paperless.",
+    "unsent_other": "{count} de estas páginas nunca se enviaron a Paperless.",
+    "cancel": "Cancelar",
+    "delete": "Eliminar"
   },
   "alert": {
     "noPages": "Este escaneo aún no tiene páginas.",
-    "bulkSkipped": "Se conservaron {scans} ({running} aún escaneando). Inténtelo de nuevo cuando terminen."
+    "bulkSkipped": "Se conservaron {scans} ({running} aún escaneando). Inténtelo de nuevo cuando terminen.",
+    "rotateFailed_one": "No se pudo girar {count} página: {reason}",
+    "rotateFailed_other": "No se pudieron girar {count} páginas: {reason}"
   },
   "busy": {
     "working": "Procesando…"
@@ -188,7 +202,9 @@
     "delete": "Eliminar seleccionados",
     "runningTitle": "Aún escaneando: se podrá eliminar cuando termine",
     "count_one": "{count} seleccionado",
-    "count_other": "{count} seleccionados"
+    "count_other": "{count} seleccionados",
+    "hint": "Marca los escaneos que quieres eliminar. Haz clic en el nombre de uno para ver qué contiene antes.",
+    "lookInside": "Ver qué contiene este escaneo"
   },
   "count": {
     "scan_one": "{count} escaneo",
@@ -201,10 +217,11 @@
     "sent_other": "Se enviaron {count} páginas a Paperless como “{title}”.",
     "pageDeleted": "Página eliminada.",
     "scanDeleted": "Escaneo eliminado.",
-    "undo": "Deshacer",
     "restored": "Se restauró el original.",
     "scansDeleted_one": "Se eliminó {count} escaneo.",
-    "scansDeleted_other": "Se eliminaron {count} escaneos."
+    "scansDeleted_other": "Se eliminaron {count} escaneos.",
+    "rotated_one": "Se giró {count} página.",
+    "rotated_other": "Se giraron {count} páginas."
   },
   "export": {
     "button": "Exportar PDF",
@@ -214,5 +231,35 @@
     "scopeSelected_other": "Exporta las {count} páginas seleccionadas",
     "scopeAll_one": "Exporta la {count} página de este escaneo",
     "scopeAll_other": "Exporta las {count} páginas de este escaneo"
+  },
+  "appearance": {
+    "title": "Apariencia e idioma",
+    "mode": "Modo",
+    "auto": "Auto",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "colors": "Colores",
+    "scheme": {
+      "slate": "Pizarra",
+      "ocean": "Océano",
+      "forest": "Bosque",
+      "violet": "Violeta",
+      "rose": "Rosa"
+    },
+    "language": "Idioma"
+  },
+  "filter": {
+    "search": "Buscar escaneos",
+    "anyTime": "Cualquier fecha",
+    "today": "Hoy",
+    "week": "Últimos 7 días",
+    "month": "Últimos 30 días",
+    "year": "Este año",
+    "custom": "Elegir fechas…",
+    "from": "Desde",
+    "to": "Hasta",
+    "clear": "Quitar filtros",
+    "none": "Ningún escaneo coincide.",
+    "count": "{shown} de {total} escaneos"
   }
 }

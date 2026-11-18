@@ -208,18 +208,25 @@ all (under about 520 pixels tall) falls back to an ordinary scrolling page.
   reached it says why and what to try (switch it on, plug it in; it can
   switch itself off after sitting idle).
 - **Scans list**: every scan with its date, page count and state, newest
-  first. *Select* turns the rows into checkboxes with *Select all* and a
-  count; *Delete selected* asks first, saying how many scans and pages are
-  about to go and, with Paperless set up, how many of those pages were
-  never sent to it. A scan that is still running can't be ticked or
-  deleted.
+  first. The latest one opens by itself when you arrive (on a computer; on a
+  phone the list comes first). Above the list, **search** matches the words you
+  type against each scan's name and date, and the **date** menu narrows it to
+  today, the last 7 or 30 days, this year, or dates you pick; a line says how
+  many scans match and clears the filters. *Select* turns the rows into
+  checkboxes, each with small previews of the scan's first pages; clicking a
+  scan's name opens it beside the list so you can look inside before deciding,
+  and *Select all* ticks only what the filter shows. *Delete selected* asks
+  first, listing the scans about to go and, with Paperless set up, how many of
+  their pages were never sent to it. A scan that is still running can't be
+  ticked or deleted.
 - **An open scan**: its name is edited where it is (a *Save* button
-  appears while it has changed; Enter saves, Escape undoes). The buttons
+  appears while it has changed; Enter saves and leaves the field, Escape
+  undoes). The buttons
   are the actions you use most: *Send to Paperless…* (the pages not in
   Paperless yet, or all of them if every page is), *Export PDF* (JPEG, or
   PNG from the arrow beside it), and *⋯* for the occasional ones:
-  *Auto-crop pages*, *Auto-rotate pages* and *Delete scan*. Under it, what
-  has been sent to Paperless and how it is going.
+  *Auto-crop pages*, *Auto-rotate pages* and *Delete scan*, which asks first and then shows the next
+  scan in the list. Under it, what has been sent to Paperless and how it is going.
 - **Pages**: one thumbnail per page, small JPEGs the server makes and
   keeps, so a long scan loads quickly even over a phone connection. Each
   carries its state ("auto-cropped", "auto-rotated", "in Paperless"). To
@@ -235,13 +242,19 @@ all (under about 520 pixels tall) falls back to an ordinary scrolling page.
   *Export* and *⋯* (*Restore original*, *Delete page*) on the right.
 - **The selection bar**: ticked pages, from one scan or several, collect in
   a bar at the bottom with a thumbnail of each. Drag them (press and hold on a
-  touch screen) to set the order, or × to drop one. *Send to Paperless…* sends them as one document with a
+  touch screen) to set the order, or × to drop one. The **↺ ↻** buttons rotate
+  every selected page left or right at once. *Send to Paperless…* sends them as one document with a
   title, date, correspondent, document type and tags, picked from your
   Paperless lists (tags are toggle buttons; anything left blank is up to
   Paperless's own rules). *Export PDF* downloads them as one PDF; its menu also offers a PDF with lossless PNG pages, or the pages as separate images in a ZIP (PNG, high-quality JPEG or smaller JPEG).
-- **Undo**: deleting a page or a scan hides it at once and offers *Undo* for
-  a few seconds before it is really deleted, so there is no confirmation to
-  click through. Closing the page in that time leaves it undeleted.
+- **Deleting asks first**: deleting a page, a scan or several scans shows what
+  is about to go, with *Cancel* as the default (Enter, Escape or a click outside
+  all keep it) and a red *Delete* button for the real thing. After deleting an
+  open scan the next one in the list is shown.
+- **Appearance and language**: the half-filled circle in the top bar opens a
+  menu with the mode (*Auto* follows your system's light or dark setting,
+  or choose *Light* / *Dark*), five colour schemes (slate, ocean, forest,
+  violet and rose) and the language. Your choices are remembered in the browser.
 - **Messages** (sent, trimmed, restored, deleted) appear as short toasts at
   the top, not pop-up boxes.
 

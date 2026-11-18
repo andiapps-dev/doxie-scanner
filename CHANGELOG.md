@@ -5,6 +5,37 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/) — tags look
 like `v1.2.0`, and each one gets its own section below.
 
+## [Unreleased]
+
+### Added
+
+- **Dark and light themes, and colour schemes.** A menu in the top bar sets the
+  mode (Auto follows the system's light or dark setting, or Light / Dark) and one
+  of five colour schemes (slate, the original look, ocean, forest, violet and
+  rose), and holds the language choice, which moved there to make room on a
+  phone. The choice is kept in the browser and applied before the page paints, so
+  there is no flash of the wrong theme.
+- **Search and date filter for scans.** Type words to match a scan's name or date
+  and narrow by today, the last 7 or 30 days, this year, or a range of dates.
+  *Select all* in select mode ticks only the scans the filter shows.
+- **Rotate the selected pages together.** Two buttons in the selection bar turn
+  every selected page left or right at once, across scans.
+- **The latest scan opens when you arrive** (on a computer; on a phone the list
+  is the starting point).
+
+### Changed
+
+- **Deleting asks first instead of offering Undo.** Deleting a page, a scan or
+  several scans now shows what is about to go, with Cancel as the default (Enter,
+  Escape or a click outside all keep it) and a red Delete button. The
+  Undo-for-a-few-seconds is gone. After deleting the open scan, the next one in
+  the list is shown instead of an empty pane.
+- **Select mode shows what is in each scan.** Rows carry small previews of the
+  first pages, and clicking a scan's name opens it beside the list, so you can
+  look inside before ticking it for deletion.
+- **Renaming a scan with Enter now leaves the field** instead of looking as if it
+  were still being edited.
+
 ## [1.1.0] - 2026-11-17
 
 ### Added

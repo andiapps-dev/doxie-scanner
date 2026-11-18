@@ -63,6 +63,9 @@
     document.querySelectorAll('[data-i18n-title]').forEach((elm) => {
       elm.title = t(elm.getAttribute('data-i18n-title'));
     });
+    document.querySelectorAll('[data-i18n-aria-label]').forEach((elm) => {
+      elm.setAttribute('aria-label', t(elm.getAttribute('data-i18n-aria-label')));
+    });
     document.querySelectorAll('[data-i18n-alt]').forEach((elm) => {
       elm.alt = t(elm.getAttribute('data-i18n-alt'));
     });

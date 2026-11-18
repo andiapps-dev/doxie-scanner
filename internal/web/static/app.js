@@ -25,8 +25,12 @@
     busyDepth: 0,
     scannerConnected: false,
     scanning: false,
-    // The one delete that is waiting out its Undo window (see scheduleDelete).
-    pendingDelete: null,
+    // Search and date filter for the scan list.
+    filter: { q: '', range: 'any', from: '', to: '' },
+    // The latest scan opens by itself once, when the page first loads.
+    autoOpened: false,
+    // True while the delete confirmation is up.
+    confirming: false,
     // What the send form was opened for: {pages, fromBar}.
     send: null,
   };
@@ -53,7 +57,7 @@
     }
   }
 
-  // ---- Toasts and undo ----
+  // ---- Toasts and confirmations ----
 
   // toast shows a short message at the top of the page that goes away by
   // itself. kind is a Bootstrap colour (success, danger, warning, info);
@@ -85,55 +89,57 @@
     return t;
   }
 
-  // The window to undo a delete in, in milliseconds. A test can shorten it.
-  const undoMs = () => window.DOXIE_UNDO_MS ?? 8000;
-
-  // scheduleDelete makes a delete undoable. The thing is hidden at once
-  // (hide) and a toast offers Undo; only when that runs out does commit make
-  // the request that really deletes it. Closing the page in the meantime
-  // loses the delete, which is the safe way round. Only one delete waits at
-  // a time: starting another commits the first straight away, so the page
-  // numbers a later request names are never ones an earlier one shifted.
-  async function scheduleDelete({ message, hide, restore, commit, target }) {
-    await flushPendingDelete();
-    const pending = { target, restore, commit, timer: null, toast: null, settled: false };
-    state.pendingDelete = pending;
-    hide();
-    pending.toast = toast(message, {
-      kind: 'dark',
-      duration: undoMs(),
-      action: {
-        label: I18N.t('toast.undo'),
-        onClick: () => {
-          if (pending.settled) return;
-          pending.settled = true;
-          clearTimeout(pending.timer);
-          state.pendingDelete = null;
-          restore();
-        },
-      },
-    });
-    pending.timer = setTimeout(() => settlePending(pending), undoMs());
-  }
-
-  async function settlePending(pending) {
-    if (pending.settled) return;
-    pending.settled = true;
-    clearTimeout(pending.timer);
-    if (state.pendingDelete === pending) state.pendingDelete = null;
-    try {
-      await pending.commit();
-    } catch (e) {
-      toast(e.message, { kind: 'danger' });
-      pending.restore();
+  // confirmDialog asks before something that can't be taken back and resolves
+  // true only if the person chose the red button. Cancel has the focus when it
+  // opens, so pressing Enter, Escape or clicking outside all keep things as
+  // they are. items ({name, meta, thumb}) list what is about to go.
+  function confirmDialog({ title, message, items = [], warning = '', confirmLabel = I18N.t('confirm.delete') }) {
+    // Only one question at a time: asking again while one is up is a no.
+    if (state.confirming) return Promise.resolve(false);
+    state.confirming = true;
+    const modalEl = el('confirm-modal');
+    el('confirm-title').textContent = title;
+    el('confirm-message').textContent = message;
+    const list = el('confirm-items');
+    list.innerHTML = '';
+    for (const it of items) {
+      const li = document.createElement('li');
+      if (it.thumb) {
+        const img = document.createElement('img');
+        img.src = it.thumb;
+        img.alt = '';
+        li.appendChild(img);
+      }
+      const text = document.createElement('span');
+      text.innerHTML = `<strong></strong><br><small class="text-body-secondary"></small>`;
+      text.querySelector('strong').textContent = it.name;
+      text.querySelector('small').textContent = it.meta || '';
+      li.appendChild(text);
+      list.appendChild(li);
     }
-  }
-
-  function flushPendingDelete() {
-    const pending = state.pendingDelete;
-    if (!pending) return Promise.resolve();
-    if (pending.toast) pending.toast.hide();
-    return settlePending(pending);
+    el('confirm-warning').textContent = warning;
+    el('confirm-warning').classList.toggle('d-none', !warning);
+    el('confirm-yes').textContent = confirmLabel;
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    return new Promise((resolve) => {
+      let answer = false;
+      const onYes = () => {
+        answer = true;
+        modal.hide();
+      };
+      const onShown = () => el('confirm-no').focus();
+      const onHidden = () => {
+        el('confirm-yes').removeEventListener('click', onYes);
+        modalEl.removeEventListener('shown.bs.modal', onShown);
+        modalEl.removeEventListener('hidden.bs.modal', onHidden);
+        state.confirming = false;
+        resolve(answer);
+      };
+      el('confirm-yes').addEventListener('click', onYes);
+      modalEl.addEventListener('shown.bs.modal', onShown);
+      modalEl.addEventListener('hidden.bs.modal', onHidden);
+      modal.show();
+    });
   }
 
   // translateErrorCode maps the backend's stable error `code` to a
@@ -257,17 +263,81 @@
 
   // ---- Scan jobs ----
 
-  // Scans and pages that have been deleted but are still waiting out their
-  // Undo window are hidden from every list, so reloading from the server in
-  // that time can't bring one back on screen.
-  function visibleJobs() {
-    const hidden = state.pendingDelete && state.pendingDelete.target && state.pendingDelete.target.scans;
-    return hidden ? state.jobs.filter((j) => !hidden.has(j.id)) : state.jobs;
+  // ---- Search and date filter ----
+
+  // The range's bounds as local-time timestamps; null means open-ended.
+  function filterBounds() {
+    const { range, from, to } = state.filter;
+    const now = new Date();
+    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const day = 24 * 60 * 60 * 1000;
+    switch (range) {
+      case 'today': return [startOfDay(now), null];
+      case 'week': return [startOfDay(now) - 6 * day, null];
+      case 'month': return [startOfDay(now) - 29 * day, null];
+      case 'year': return [new Date(now.getFullYear(), 0, 1).getTime(), null];
+      case 'custom': {
+        // <input type=date> gives "YYYY-MM-DD"; read it as a local date.
+        const parse = (v) => (v ? new Date(`${v}T00:00:00`).getTime() : null);
+        const lo = parse(from);
+        const hi = parse(to);
+        return [lo, hi === null ? null : hi + day];
+      }
+      default: return [null, null];
+    }
   }
 
-  function pendingHiddenPage(jobId, page) {
-    const t = state.pendingDelete && state.pendingDelete.target;
-    return !!t && t.job === jobId && t.page === page;
+  function filterActive() {
+    const f = state.filter;
+    return f.q.trim() !== '' || f.range !== 'any';
+  }
+
+  // A scan matches when its name or its date (as shown in the list) contains
+  // every word typed, and it was made inside the chosen dates.
+  function matchesFilter(job) {
+    const words = state.filter.q.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length > 0) {
+      const hay = `${job.name} ${new Date(job.createdAt).toLocaleString()} ${job.createdAt}`.toLowerCase();
+      if (!words.every((w) => hay.includes(w))) return false;
+    }
+    const [lo, hi] = filterBounds();
+    const t = new Date(job.createdAt).getTime();
+    if (lo !== null && t < lo) return false;
+    if (hi !== null && t >= hi) return false;
+    return true;
+  }
+
+  // The scans the list shows: all of them, narrowed by the filter.
+  function visibleJobs() {
+    return filterActive() ? state.jobs.filter(matchesFilter) : state.jobs;
+  }
+
+  function renderFilterSummary() {
+    const shown = visibleJobs().length;
+    el('job-filter').classList.toggle('d-none', state.jobs.length === 0);
+    el('job-filter-summary').classList.toggle('d-none', !filterActive());
+    el('job-filter-count').textContent = I18N.t('filter.count', { shown, total: state.jobs.length });
+    el('job-custom-range').classList.toggle('d-none', state.filter.range !== 'custom');
+  }
+
+  function setFilter(patch) {
+    Object.assign(state.filter, patch);
+    renderJobList();
+    if (state.bulkMode) {
+      // Anything ticked but now out of sight would be deleted unseen: untick it.
+      const shown = new Set(visibleJobs().map((j) => j.id));
+      state.bulkSelected = new Set(Array.from(state.bulkSelected).filter((id) => shown.has(id)));
+      renderJobList();
+      updateBulkBar();
+    }
+  }
+
+  function clearFilter() {
+    el('job-search').value = '';
+    el('job-range').value = 'any';
+    el('job-from').value = '';
+    el('job-to').value = '';
+    setFilter({ q: '', range: 'any', from: '', to: '' });
   }
 
   async function loadJobs() {
@@ -279,14 +349,21 @@
     if (!state.selectedJob) renderJobDetail();
   }
 
+  const isDesktop = () => window.matchMedia('(min-width: 992px)').matches;
+
   function renderJobList() {
     const list = el('job-list');
     list.innerHTML = '';
     const jobs = visibleJobs();
-    // Nothing to select while there are no scans.
-    el('bulk-toggle-btn').classList.toggle('d-none', jobs.length === 0);
-    if (jobs.length === 0) {
+    // Nothing to select, search or filter while there are no scans.
+    el('bulk-toggle-btn').classList.toggle('d-none', state.jobs.length === 0);
+    renderFilterSummary();
+    if (state.jobs.length === 0) {
       list.innerHTML = `<div class="list-group-item text-muted">${I18N.t('jobs.empty')}</div>`;
+      return;
+    }
+    if (jobs.length === 0) {
+      list.innerHTML = `<div class="list-group-item text-muted">${I18N.t('filter.none')}</div>`;
       return;
     }
     for (const job of jobs) {
@@ -326,24 +403,40 @@
     return `${when} · ${I18N.t('jobs.pageCount', { count: job.pageCount })} · ${I18N.t(`status.${job.status}`)}`;
   }
 
-  // In select mode each scan is a checkbox row; clicking it ticks it
-  // instead of opening the scan.
+  // What the delete confirmation lists for a scan: its name, when it was made
+  // and how many pages, with its first page as a picture.
+  function scanItem(job) {
+    return {
+      name: job.name,
+      meta: jobMetaLine(job),
+      thumb: job.pageCount > 0 ? pageThumbUrl(job.id, 1) : '',
+    };
+  }
+
+  // In select mode each scan is a row with a tick-box and a small preview of
+  // its first pages. Ticking is only the box; clicking the name opens the
+  // scan alongside, so you can look inside before deciding to delete it.
   function renderBulkRow(job) {
-    const row = document.createElement('label');
-    row.className = 'list-group-item d-flex gap-2 align-items-start';
+    const isOpen = job.id === state.selectedJobId;
+    const row = document.createElement('div');
+    row.className = `list-group-item bulk-row${isOpen ? ' active' : ''}`;
     const selectable = bulkSelectable(job);
     if (!selectable) row.title = I18N.t('bulk.runningTitle');
+    const thumbs = Array.from({ length: Math.min(3, job.pageCount || 0) }, (_, i) =>
+      `<img src="${pageThumbUrl(job.id, i + 1)}" alt="" loading="lazy" draggable="false">`).join('');
     row.innerHTML = `
-      <input type="checkbox" class="form-check-input mt-1 bulk-check" ${state.bulkSelected.has(job.id) ? 'checked' : ''} ${selectable ? '' : 'disabled'}>
-      <span>
+      <input type="checkbox" class="form-check-input mt-1 bulk-check" aria-label="${escapeHtml(job.name)}" ${state.bulkSelected.has(job.id) ? 'checked' : ''} ${selectable ? '' : 'disabled'}>
+      <button type="button" class="bulk-open" title="${escapeHtml(I18N.t('bulk.lookInside'))}">
         <div>${escapeHtml(job.name)}</div>
-        <small class="job-meta text-muted">${escapeHtml(jobMetaLine(job))}</small>
-      </span>`;
+        <small class="job-meta ${isOpen ? '' : 'text-muted'}">${escapeHtml(jobMetaLine(job))}</small>
+        ${thumbs ? `<div class="bulk-thumbs">${thumbs}</div>` : ''}
+      </button>`;
     row.querySelector('.bulk-check').addEventListener('change', (e) => {
       if (e.target.checked) state.bulkSelected.add(job.id);
       else state.bulkSelected.delete(job.id);
       updateBulkBar();
     });
+    row.querySelector('.bulk-open').addEventListener('click', () => selectJob(job.id));
     return row;
   }
 
@@ -361,6 +454,7 @@
     state.bulkMode = on;
     state.bulkSelected = new Set();
     el('bulk-bar').classList.toggle('d-none', !on);
+    el('bulk-hint').classList.toggle('d-none', !on);
     el('bulk-toggle-btn').textContent = I18N.t(on ? 'bulk.done' : 'bulk.select');
     renderJobList();
     if (on) updateBulkBar();
@@ -396,22 +490,43 @@
     }
   }
 
+  // Which scan to show once `gone` are deleted. The open scan stays open if it
+  // survives; otherwise it is the next one down the list from where it was, or
+  // the one above if it was the last. `order` is the list as it was before.
+  function scanAfterDelete(order, anchor, gone) {
+    if (anchor && !gone.has(anchor)) return anchor;
+    const at = order.indexOf(anchor);
+    if (at < 0) return isDesktop() ? order.find((id) => !gone.has(id)) || null : null;
+    for (let i = at + 1; i < order.length; i++) if (!gone.has(order[i])) return order[i];
+    for (let i = at - 1; i >= 0; i--) if (!gone.has(order[i])) return order[i];
+    return null;
+  }
+
+  // Unsent pages are only worth a warning when Paperless is set up: they would
+  // be gone for good without ever having reached it.
+  function unsentWarning(jobs) {
+    const unsent = jobs.reduce((sum, j) => sum + (j.unsentPages || 0), 0);
+    return state.paperlessUrl && unsent > 0 ? I18N.t('confirm.unsent', { count: unsent }) : '';
+  }
+
   async function bulkDelete() {
     const chosen = state.jobs.filter((j) => state.bulkSelected.has(j.id));
     if (chosen.length === 0) return;
     const pages = chosen.reduce((sum, j) => sum + (j.pageCount || 0), 0);
-    let message = I18N.t('confirm.bulkDelete', {
-      scans: I18N.t('count.scan', { count: chosen.length }),
-      pages: I18N.t('count.page', { count: pages }),
+    const ok = await confirmDialog({
+      title: I18N.t('confirm.deleteScansTitle', { count: chosen.length }),
+      message: I18N.t('confirm.bulkDelete', {
+        scans: I18N.t('count.scan', { count: chosen.length }),
+        pages: I18N.t('count.page', { count: pages }),
+      }),
+      items: chosen.map(scanItem),
+      warning: unsentWarning(chosen),
+      confirmLabel: I18N.t('confirm.deleteN', { count: chosen.length }),
     });
-    // Only meaningful when Paperless is set up: pages that never reached it
-    // would be gone for good.
-    const unsent = chosen.reduce((sum, j) => sum + (j.unsentPages || 0), 0);
-    if (state.paperlessUrl && unsent > 0) {
-      message += `\n\n${I18N.t('confirm.bulkUnsent', { count: unsent })}`;
-    }
-    if (!confirm(message)) return;
+    if (!ok) return;
 
+    const before = visibleJobs().map((j) => j.id);
+    const anchor = state.selectedJobId;
     await withBusy(async () => {
       const res = await api('/api/scans/bulk-delete', {
         method: 'POST',
@@ -419,9 +534,12 @@
         body: JSON.stringify({ ids: chosen.map((j) => j.id) }),
       });
       const { deleted, skipped } = await res.json();
-      forgetScans(new Set(deleted));
+      const gone = new Set(deleted);
+      const next = scanAfterDelete(before, anchor, gone);
+      forgetScans(gone);
       state.bulkSelected = new Set(skipped.map((x) => x.id));
       await loadJobs();
+      if (next && next !== state.selectedJobId) await selectJob(next);
       updateBulkBar();
       if (deleted.length > 0) toast(I18N.t('toast.scansDeleted', { count: deleted.length }));
       if (skipped.length > 0) {
@@ -449,7 +567,7 @@
     // On a phone only one of the list and the open scan shows at a time.
     document.body.classList.toggle('job-open', !!job);
     if (!job) {
-      el('job-detail-empty').textContent = I18N.t(visibleJobs().length === 0 ? 'jobs.emptyPrompt' : 'jobs.selectPrompt');
+      el('job-detail-empty').textContent = I18N.t(state.jobs.length === 0 ? 'jobs.emptyPrompt' : 'jobs.selectPrompt');
       el('job-detail-empty').classList.remove('d-none');
       el('job-detail').classList.add('d-none');
       return;
@@ -465,7 +583,7 @@
 
     const grid = el('page-grid');
     grid.innerHTML = '';
-    const pages = (job.pages || []).filter((p) => !pendingHiddenPage(job.id, p.index));
+    const pages = job.pages || [];
     updateGridHeader(job.id, pages);
     if (pages.length === 0) {
       grid.innerHTML = `<p class="text-muted">${I18N.t('jobDetail.noPages')}</p>`;
@@ -484,7 +602,7 @@
     const job = state.selectedJob;
     const jobScope = document.querySelector('.export-scope[data-scope="job"]');
     if (jobScope) {
-      const total = job ? (job.pages || []).filter((p) => !pendingHiddenPage(job.id, p.index)).length : 0;
+      const total = job ? (job.pages || []).length : 0;
       jobScope.textContent = job ? I18N.t('export.scopeAll', { count: total }) : '';
     }
     const barScope = document.querySelector('.export-scope[data-scope="bar"]');
@@ -508,7 +626,6 @@
     const job = state.selectedJob;
     if (!job) return;
     for (const p of job.pages || []) {
-      if (pendingHiddenPage(job.id, p.index)) continue;
       const key = combineKey(job.id, p.index);
       if (!state.combineSelection.has(key)) {
         state.combineSelection.set(key, { jobId: job.id, page: p.index });
@@ -809,7 +926,7 @@
     const count = state.combineOrder.length;
     el('combine-count-text').textContent = I18N.t('combine.selected', { count });
     updateExportScope();
-    if (state.selectedJob) updateGridHeader(state.selectedJob.id, (state.selectedJob.pages || []).filter((p) => !pendingHiddenPage(state.selectedJob.id, p.index)));
+    if (state.selectedJob) updateGridHeader(state.selectedJob.id, state.selectedJob.pages || []);
     bar.classList.toggle('d-none', count === 0);
 
     const thumbs = el('combine-thumbs');
@@ -1101,35 +1218,37 @@
     state.combineOrder = state.combineOrder.filter((k) => k !== key);
   }
 
-  // Deleting a page hides it at once and offers Undo; the page is only
-  // really deleted when the Undo window has passed (see scheduleDelete).
+  // Deleting a page asks first. The viewer closes while the question is up (two
+  // dialogs don't stack well) and comes back if the answer is no.
   async function deleteCurrentPage() {
     if (!state.viewer) return;
     const { jobId, page } = state.viewer;
+    const job = state.selectedJob && state.selectedJob.id === jobId ? state.selectedJob : null;
+    const all = (job && job.pages) || [];
+    const pos = all.findIndex((p) => p.index === page);
+    pageModal().hide();
+    const ok = await confirmDialog({
+      title: I18N.t('confirm.deletePageTitle'),
+      message: I18N.t('confirm.deletePage', { n: pos + 1, total: all.length }),
+      items: [{ name: I18N.t('page.label', { n: pos + 1 }), meta: job ? job.name : '', thumb: pageThumbUrl(jobId, page) }],
+    });
+    if (!ok) {
+      openPageViewer(jobId, page);
+      return;
+    }
     // The server renumbers the remaining pages by their position, so the
     // selection (kept by page number) must follow once it has, or "send" and
     // "combine" would pick the wrong pages afterwards.
-    const remaining = ((state.selectedJob && state.selectedJob.id === jobId && state.selectedJob.pages) || [])
-      .filter((p) => p.index !== page);
+    const remaining = all.filter((p) => p.index !== page);
     const newIndex = new Map(remaining.map((p, i) => [p.index, i + 1]));
-    pageModal().hide();
-    await scheduleDelete({
-      message: I18N.t('toast.pageDeleted'),
-      target: { job: jobId, page },
-      hide: () => {
-        dropFromSelection(jobId, page);
-        renderJobDetail();
-        renderCombineBar();
-      },
-      restore: () => renderJobDetail(),
-      commit: async () => {
-        await api(`/api/scans/${jobId}/pages/${page}`, { method: 'DELETE' });
-        renumberSelection(jobId, newIndex);
-        renderCombineBar();
-        if (state.selectedJobId === jobId) await selectJob(jobId);
-        await loadJobs();
-      },
+    await withBusy(async () => {
+      await api(`/api/scans/${jobId}/pages/${page}`, { method: 'DELETE' });
+      renumberSelection(jobId, newIndex);
+      renderCombineBar();
+      if (state.selectedJobId === jobId) await selectJob(jobId);
+      await loadJobs();
     });
+    toast(I18N.t('toast.pageDeleted'));
   }
 
   // ---- Export / combine ----
@@ -1200,6 +1319,39 @@
     }
     const pages = job.pages.map((p) => ({ jobId: job.id, page: p.index }));
     await exportPages(pages, job.name, opt);
+  }
+
+  // Rotates every selected page, one after another (each is its own image to
+  // decode and rewrite). Pages that can't be rotated, say because their scan is
+  // still running, are reported and don't stop the rest.
+  async function rotateSelected(degrees) {
+    const pages = selectedPagesInOrder();
+    if (pages.length === 0) return;
+    let done = 0;
+    let firstError = '';
+    await withBusy(async () => {
+      for (const { jobId, page } of pages) {
+        try {
+          await api(`/api/scans/${jobId}/pages/${page}/rotate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ degrees }),
+          });
+          done++;
+        } catch (e) {
+          if (!firstError) firstError = e.message;
+        }
+      }
+      // New image URLs, so no thumbnail is served from the browser's cache.
+      state.renderNonce++;
+      await loadJobs();
+      if (state.selectedJobId) await selectJob(state.selectedJobId);
+      renderCombineBar();
+    });
+    if (done > 0) toast(I18N.t('toast.rotated', { count: done }));
+    if (done < pages.length) {
+      toast(I18N.t('alert.rotateFailed', { count: pages.length - done, reason: firstError }), { kind: 'warning', duration: 7000 });
+    }
   }
 
   // ---- Auto-rotate ----
@@ -1527,30 +1679,33 @@
     });
     if (state.selectedJob) state.selectedJob.name = name;
     updateRenameButton();
+    // Done: leave the field, so it stops looking like it is still being edited.
+    el('job-name-input').blur();
     await loadJobs();
   }
 
-  // Deleting a scan hides it at once and offers Undo; it is only really
-  // deleted when the Undo window has passed (see scheduleDelete).
+  // Deleting a scan asks first (Cancel is the default), then shows the next
+  // scan in its place.
   async function deleteJob() {
     const id = state.selectedJobId;
     if (!id) return;
-    await scheduleDelete({
-      message: I18N.t('toast.scanDeleted'),
-      target: { scans: new Set([id]) },
-      hide: () => {
-        forgetScans(new Set([id]));
-        renderJobList();
-      },
-      restore: () => {
-        renderJobList();
-        renderJobDetail();
-      },
-      commit: async () => {
-        await api(`/api/scans/${id}`, { method: 'DELETE' });
-        await loadJobs();
-      },
+    const summary = state.jobs.find((j) => j.id === id) || state.selectedJob;
+    const ok = await confirmDialog({
+      title: I18N.t('confirm.deleteScanTitle'),
+      message: I18N.t('confirm.deleteScan', { pages: I18N.t('count.page', { count: summary.pageCount || 0 }) }),
+      items: [scanItem(summary)],
+      warning: unsentWarning([summary]),
     });
+    if (!ok) return;
+    const before = visibleJobs().map((j) => j.id);
+    await withBusy(async () => {
+      await api(`/api/scans/${id}`, { method: 'DELETE' });
+      const next = scanAfterDelete(before, id, new Set([id]));
+      forgetScans(new Set([id]));
+      await loadJobs();
+      if (next) await selectJob(next);
+    });
+    toast(I18N.t('toast.scanDeleted'));
   }
 
   function escapeHtml(s) {
@@ -1558,6 +1713,32 @@
     div.textContent = s;
     return div.innerHTML;
   }
+
+  // ---- Appearance (mode and colour scheme; see theme.js) ----
+
+  function syncAppearance() {
+    const theme = window.DoxieTheme;
+    document.querySelectorAll('input[name="theme-mode"]').forEach((r) => { r.checked = r.value === theme.mode; });
+    document.querySelectorAll('.swatch').forEach((b) => {
+      const label = I18N.t(`appearance.scheme.${b.dataset.scheme}`);
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.setAttribute('aria-pressed', String(b.dataset.scheme === theme.scheme));
+    });
+  }
+
+  document.querySelectorAll('input[name="theme-mode"]').forEach((r) => {
+    r.addEventListener('change', () => {
+      window.DoxieTheme.setMode(r.value);
+      syncAppearance();
+    });
+  });
+  document.querySelectorAll('.swatch').forEach((b) => {
+    b.addEventListener('click', () => {
+      window.DoxieTheme.setScheme(b.dataset.scheme);
+      syncAppearance();
+    });
+  });
 
   // ---- Wire up ----
 
@@ -1592,7 +1773,6 @@
   el('job-delete-btn').addEventListener('click', deleteJob);
   el('job-export-pdf-btn').addEventListener('click', () => exportWholeScan());
   el('job-back-btn').addEventListener('click', async () => {
-    await flushPendingDelete();
     state.selectedJobId = null;
     state.selectedJob = null;
     renderJobList();
@@ -1601,6 +1781,13 @@
   });
   el('grid-select-all').addEventListener('click', selectAllPages);
   el('grid-select-none').addEventListener('click', clearScanSelection);
+  el('combine-rotate-left').addEventListener('click', () => rotateSelected(270));
+  el('combine-rotate-right').addEventListener('click', () => rotateSelected(90));
+  el('job-search').addEventListener('input', (e) => setFilter({ q: e.target.value }));
+  el('job-range').addEventListener('change', (e) => setFilter({ range: e.target.value }));
+  el('job-from').addEventListener('change', (e) => setFilter({ from: e.target.value }));
+  el('job-to').addEventListener('change', (e) => setFilter({ to: e.target.value }));
+  el('job-filter-clear').addEventListener('click', clearFilter);
   el('combine-btn').addEventListener('click', () => exportSelected());
   document.querySelectorAll('.export-opt').forEach((b) => b.addEventListener('click', () => {
     (b.closest('#combine-bar') ? exportSelected : exportWholeScan)(exportOptOf(b));
@@ -1661,8 +1848,16 @@
   // locale dictionary to be ready rather than racing it.
   (async () => {
     await window.I18N.ready;
+    syncAppearance();
     pollScannerStatus();
     setInterval(pollScannerStatus, 3000);
-    loadJobs();
+    await loadJobs();
+    // Open the latest scan, so the page starts on something rather than an
+    // empty pane. Only where the list and the scan sit side by side: on a phone
+    // the list is the starting point and the scan replaces it.
+    if (!state.autoOpened) {
+      state.autoOpened = true;
+      if (isDesktop() && state.jobs.length > 0 && !state.selectedJobId) await selectJob(state.jobs[0].id);
+    }
   })();
 })();

@@ -89,7 +89,9 @@
     "sendButton": "Send to Paperless…",
     "selected_one": "{count} page selected",
     "selected_other": "{count} pages selected",
-    "hint": "Drag the thumbnails to reorder."
+    "hint": "Drag the thumbnails to reorder.",
+    "rotateLeft": "Rotate the selected pages left",
+    "rotateRight": "Rotate the selected pages right"
   },
   "page": {
     "label": "Page {n}",
@@ -127,12 +129,24 @@
   },
   "confirm": {
     "bulkDelete": "Delete {scans} and their {pages}? This can't be undone.",
-    "bulkUnsent_one": "{count} of those pages was never sent to Paperless.",
-    "bulkUnsent_other": "{count} of those pages were never sent to Paperless."
+    "deleteScanTitle": "Delete this scan?",
+    "deleteScan": "This scan and its {pages} will be deleted. This can't be undone.",
+    "deleteScansTitle_one": "Delete {count} scan?",
+    "deleteScansTitle_other": "Delete {count} scans?",
+    "deleteN_one": "Delete {count} scan",
+    "deleteN_other": "Delete {count} scans",
+    "deletePageTitle": "Delete this page?",
+    "deletePage": "Page {n} of {total} will be deleted from this scan. This can't be undone.",
+    "unsent_one": "{count} of these pages was never sent to Paperless.",
+    "unsent_other": "{count} of these pages were never sent to Paperless.",
+    "cancel": "Cancel",
+    "delete": "Delete"
   },
   "alert": {
     "noPages": "This scan has no pages yet.",
-    "bulkSkipped": "{scans} kept ({running} still scanning). Try again when they finish."
+    "bulkSkipped": "{scans} kept ({running} still scanning). Try again when they finish.",
+    "rotateFailed_one": "Couldn't rotate {count} page: {reason}",
+    "rotateFailed_other": "Couldn't rotate {count} pages: {reason}"
   },
   "busy": {
     "working": "Working…"
@@ -188,7 +202,9 @@
     "delete": "Delete selected",
     "runningTitle": "Still scanning: it can be deleted once it finishes",
     "count_one": "{count} selected",
-    "count_other": "{count} selected"
+    "count_other": "{count} selected",
+    "hint": "Tick the scans to delete. Click a scan's name to look inside it first.",
+    "lookInside": "Look inside this scan"
   },
   "count": {
     "scan_one": "{count} scan",
@@ -201,10 +217,11 @@
     "sent_other": "Sent {count} pages to Paperless as “{title}”.",
     "pageDeleted": "Page deleted.",
     "scanDeleted": "Scan deleted.",
-    "undo": "Undo",
     "restored": "Restored the original.",
     "scansDeleted_one": "Deleted {count} scan.",
-    "scansDeleted_other": "Deleted {count} scans."
+    "scansDeleted_other": "Deleted {count} scans.",
+    "rotated_one": "Rotated {count} page.",
+    "rotated_other": "Rotated {count} pages."
   },
   "export": {
     "button": "Export PDF",
@@ -214,5 +231,35 @@
     "scopeSelected_other": "Exports the {count} selected pages",
     "scopeAll_one": "Exports all {count} page of this scan",
     "scopeAll_other": "Exports all {count} pages of this scan"
+  },
+  "appearance": {
+    "title": "Appearance and language",
+    "mode": "Mode",
+    "auto": "Auto",
+    "light": "Light",
+    "dark": "Dark",
+    "colors": "Colors",
+    "scheme": {
+      "slate": "Slate",
+      "ocean": "Ocean",
+      "forest": "Forest",
+      "violet": "Violet",
+      "rose": "Rose"
+    },
+    "language": "Language"
+  },
+  "filter": {
+    "search": "Search scans",
+    "anyTime": "Any time",
+    "today": "Today",
+    "week": "Last 7 days",
+    "month": "Last 30 days",
+    "year": "This year",
+    "custom": "Pick dates…",
+    "from": "From",
+    "to": "To",
+    "clear": "Clear filters",
+    "none": "No scans match.",
+    "count": "{shown} of {total} scans"
   }
 }

@@ -7,16 +7,42 @@
   <link rel="stylesheet" href="vendor/bootstrap.min.css">
   <link rel="stylesheet" href="vendor/cropper.min.css">
   <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
 </head>
 <body>
   <nav class="navbar navbar-expand navbar-dark bg-primary">
     <div class="container">
       <span class="navbar-brand mb-0 h1" data-i18n="nav.title">Doxie Scanner</span>
       <span id="scanner-badge" class="badge rounded-pill text-bg-secondary" data-i18n="nav.checking">checking…</span>
-      <select id="lang-switcher" class="form-select form-select-sm ms-2" style="width:auto" aria-label="Language">
-        <option value="en">English</option>
-        <option value="es">Español</option>
-      </select>
+      <div class="dropdown ms-2">
+        <button id="appearance-btn" type="button" class="btn btn-sm btn-outline-light" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" data-i18n-title="appearance.title" title="Appearance and language">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 15A7 7 0 1 0 8 1v14zm0 1A8 8 0 1 1 8 0a8 8 0 0 1 0 16z"/></svg><span class="visually-hidden" data-i18n="appearance.title">Appearance and language</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end p-3 appearance-menu">
+          <div class="small text-body-secondary mb-1" data-i18n="appearance.mode">Mode</div>
+          <div class="btn-group w-100 mb-3" role="group" aria-label="Mode">
+            <input type="radio" class="btn-check" name="theme-mode" id="mode-auto" value="auto" autocomplete="off">
+            <label class="btn btn-sm btn-outline-secondary" for="mode-auto" data-i18n="appearance.auto">Auto</label>
+            <input type="radio" class="btn-check" name="theme-mode" id="mode-light" value="light" autocomplete="off">
+            <label class="btn btn-sm btn-outline-secondary" for="mode-light" data-i18n="appearance.light">Light</label>
+            <input type="radio" class="btn-check" name="theme-mode" id="mode-dark" value="dark" autocomplete="off">
+            <label class="btn btn-sm btn-outline-secondary" for="mode-dark" data-i18n="appearance.dark">Dark</label>
+          </div>
+          <div class="small text-body-secondary mb-1" data-i18n="appearance.colors">Colors</div>
+          <div id="scheme-swatches" class="d-flex gap-2" role="group" aria-label="Colors">
+            <button type="button" class="swatch" data-scheme="slate"></button>
+            <button type="button" class="swatch" data-scheme="ocean"></button>
+            <button type="button" class="swatch" data-scheme="forest"></button>
+            <button type="button" class="swatch" data-scheme="violet"></button>
+            <button type="button" class="swatch" data-scheme="rose"></button>
+          </div>
+          <div class="small text-body-secondary mt-3 mb-1" data-i18n="appearance.language">Language</div>
+          <select id="lang-switcher" class="form-select form-select-sm" aria-label="Language">
+            <option value="en">English</option>
+            <option value="es">Español</option>
+          </select>
+        </div>
+      </div>
     </div>
   </nav>
 
@@ -61,6 +87,28 @@
             <span data-i18n="jobs.heading">Scans</span>
             <button id="bulk-toggle-btn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="bulk.select">Select</button>
           </div>
+          <div id="job-filter" class="px-3 py-2 border-bottom d-none">
+            <div class="d-flex gap-2">
+              <input id="job-search" type="search" class="form-control form-control-sm" data-i18n-placeholder="filter.search" placeholder="Search scans" aria-label="Search scans" autocomplete="off">
+              <select id="job-range" class="form-select form-select-sm job-range" aria-label="Date">
+                <option value="any" data-i18n="filter.anyTime">Any time</option>
+                <option value="today" data-i18n="filter.today">Today</option>
+                <option value="week" data-i18n="filter.week">Last 7 days</option>
+                <option value="month" data-i18n="filter.month">Last 30 days</option>
+                <option value="year" data-i18n="filter.year">This year</option>
+                <option value="custom" data-i18n="filter.custom">Pick dates…</option>
+              </select>
+            </div>
+            <div id="job-custom-range" class="d-flex align-items-center gap-2 mt-2 d-none">
+              <input id="job-from" type="date" class="form-control form-control-sm" data-i18n-title="filter.from" title="From" aria-label="From date">
+              <span class="text-body-secondary">–</span>
+              <input id="job-to" type="date" class="form-control form-control-sm" data-i18n-title="filter.to" title="To" aria-label="To date">
+            </div>
+            <div id="job-filter-summary" class="d-flex justify-content-between align-items-center small text-body-secondary mt-1 d-none">
+              <span id="job-filter-count"></span>
+              <button id="job-filter-clear" type="button" class="btn btn-link btn-sm p-0" data-i18n="filter.clear">Clear filters</button>
+            </div>
+          </div>
           <div id="bulk-bar" class="px-3 py-2 border-bottom d-none">
             <div class="d-flex align-items-center gap-3 flex-wrap">
               <div class="form-check mb-0">
@@ -71,6 +119,7 @@
               <button id="bulk-delete-btn" type="button" class="btn btn-sm btn-danger ms-auto" disabled data-i18n="bulk.delete">Delete selected</button>
             </div>
           </div>
+          <p id="bulk-hint" class="small text-body-secondary px-3 pt-2 mb-0 d-none" data-i18n="bulk.hint">Tick the scans to delete. Click a scan's name to look inside it first.</p>
           <div id="job-list" class="list-group list-group-flush"></div>
         </div>
       </div>
@@ -146,6 +195,10 @@
       <div id="combine-thumbs" class="d-flex align-items-start gap-2 my-1"></div>
       <div class="combine-controls">
         <input id="combine-title" type="text" class="form-control form-control-sm" data-i18n-placeholder="combine.titlePlaceholder" placeholder="Document title" aria-label="Document title">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Rotate selected pages">
+          <button id="combine-rotate-left" type="button" class="btn btn-outline-secondary" data-i18n-title="combine.rotateLeft" title="Rotate the selected pages left"><span aria-hidden="true">↺</span><span class="visually-hidden" data-i18n="combine.rotateLeft">Rotate the selected pages left</span></button>
+          <button id="combine-rotate-right" type="button" class="btn btn-outline-secondary" data-i18n-title="combine.rotateRight" title="Rotate the selected pages right"><span aria-hidden="true">↻</span><span class="visually-hidden" data-i18n="combine.rotateRight">Rotate the selected pages right</span></button>
+        </div>
         <div class="btn-group dropup">
           <button id="combine-btn" type="button" class="btn btn-outline-primary btn-sm" data-i18n="export.button">Export PDF</button>
           <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" data-i18n-title="jobDetail.exportMenu" title="Export options">
@@ -270,6 +323,27 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="send.cancel">Cancel</button>
           <button type="button" class="btn btn-primary" id="send-submit" data-i18n="send.submit">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="confirm-modal" tabindex="-1" aria-labelledby="confirm-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirm-title"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" data-i18n-aria-label="confirm.cancel" aria-label="Cancel"></button>
+        </div>
+        <div class="modal-body">
+          <p id="confirm-message" class="mb-2"></p>
+          <ul id="confirm-items" class="list-unstyled confirm-items mb-2"></ul>
+          <p id="confirm-warning" class="text-danger small mb-0 d-none"></p>
+        </div>
+        <div class="modal-footer">
+          <!-- Cancel is the button that has the focus, so Enter keeps the scan. -->
+          <button type="button" id="confirm-no" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="confirm.cancel">Cancel</button>
+          <button type="button" id="confirm-yes" class="btn btn-danger" data-i18n="confirm.delete">Delete</button>
         </div>
       </div>
     </div>

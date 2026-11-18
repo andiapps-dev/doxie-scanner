@@ -84,7 +84,7 @@
   height: 1.5rem;
   margin: 0;
   border: 2px solid var(--bs-primary);
-  background-color: #fff;
+  background-color: var(--bs-body-bg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   cursor: pointer;
 }
@@ -236,21 +236,21 @@
    can be pressed looks it, and keep the real disabled look for the ones
    that can't. */
 .btn-outline-secondary {
-  --bs-btn-color: #2c3e50;
-  --bs-btn-border-color: #7b8a8b;
-  --bs-btn-hover-color: #fff;
-  --bs-btn-hover-bg: #2c3e50;
-  --bs-btn-hover-border-color: #2c3e50;
-  --bs-btn-active-color: #fff;
-  --bs-btn-active-bg: #2c3e50;
-  --bs-btn-active-border-color: #2c3e50;
-  --bs-btn-disabled-color: #95a5a6;
-  --bs-btn-disabled-border-color: #cfd6d8;
+  --bs-btn-color: var(--bs-body-color);
+  --bs-btn-border-color: var(--bs-secondary-color);
+  --bs-btn-hover-color: var(--bs-body-bg);
+  --bs-btn-hover-bg: var(--bs-body-color);
+  --bs-btn-hover-border-color: var(--bs-body-color);
+  --bs-btn-active-color: var(--bs-body-bg);
+  --bs-btn-active-bg: var(--bs-body-color);
+  --bs-btn-active-border-color: var(--bs-body-color);
+  --bs-btn-disabled-color: var(--bs-secondary-color);
+  --bs-btn-disabled-border-color: var(--bs-border-color);
 }
 
 .btn-link {
-  --bs-btn-color: var(--bs-primary);
-  --bs-btn-hover-color: #1a252f;
+  --bs-btn-color: var(--accent-text);
+  --bs-btn-hover-color: var(--accent-active);
 }
 
 /* ---- A scan's header: its name, then the few things done with it ---- */
@@ -287,7 +287,7 @@
 }
 
 .job-title-input:focus {
-  background: #fff;
+  background: var(--bs-body-bg);
 }
 
 .job-actions {
@@ -627,4 +627,189 @@ body > main > .row > * {
     order: 3;
     flex: 1 1 100%;
   }
+}
+
+/* ---- Colour schemes ----
+   One accent colour drives the buttons, links, navbar, selection and switches.
+   "slate" is the original Flatly look; each scheme has a lighter accent for
+   dark mode, where a dark one would sink into the background. The mode itself
+   (light or dark) is Bootstrap's own data-bs-theme, set by theme.js. */
+:root,
+:root[data-scheme="slate"] {
+  --accent: #2c3e50; --accent-rgb: 44, 62, 80; --accent-hover: #253544; --accent-active: #233240;
+  --accent-text: #2c3e50; --accent-text-rgb: 44, 62, 80;
+}
+:root[data-scheme="slate"][data-bs-theme="dark"] {
+  --accent: #4f6d8c; --accent-rgb: 79, 109, 140; --accent-hover: #5b7a99; --accent-active: #46627f;
+  --accent-text: #8fb0d1; --accent-text-rgb: 143, 176, 209;
+}
+:root[data-scheme="ocean"] {
+  --accent: #0b6fa4; --accent-rgb: 11, 111, 164; --accent-hover: #095f8d; --accent-active: #085378;
+  --accent-text: #0b6fa4; --accent-text-rgb: 11, 111, 164;
+}
+:root[data-scheme="ocean"][data-bs-theme="dark"] {
+  --accent: #2f7fb5; --accent-rgb: 47, 127, 181; --accent-hover: #3a8dc4; --accent-active: #286f9f;
+  --accent-text: #7fbde6; --accent-text-rgb: 127, 189, 230;
+}
+:root[data-scheme="forest"] {
+  --accent: #2e7d4f; --accent-rgb: 46, 125, 79; --accent-hover: #276b44; --accent-active: #225c3a;
+  --accent-text: #2e7d4f; --accent-text-rgb: 46, 125, 79;
+}
+:root[data-scheme="forest"][data-bs-theme="dark"] {
+  --accent: #3b8f5f; --accent-rgb: 59, 143, 95; --accent-hover: #46a06d; --accent-active: #33805a;
+  --accent-text: #7fcf9f; --accent-text-rgb: 127, 207, 159;
+}
+:root[data-scheme="violet"] {
+  --accent: #6f42c1; --accent-rgb: 111, 66, 193; --accent-hover: #5f38a5; --accent-active: #543192;
+  --accent-text: #6f42c1; --accent-text-rgb: 111, 66, 193;
+}
+:root[data-scheme="violet"][data-bs-theme="dark"] {
+  --accent: #7c5cd6; --accent-rgb: 124, 92, 214; --accent-hover: #8a6de0; --accent-active: #6d4fc4;
+  --accent-text: #b9a3f5; --accent-text-rgb: 185, 163, 245;
+}
+:root[data-scheme="rose"] {
+  --accent: #b83a62; --accent-rgb: 184, 58, 98; --accent-hover: #a03355; --accent-active: #8c2d4a;
+  --accent-text: #b83a62; --accent-text-rgb: 184, 58, 98;
+}
+:root[data-scheme="rose"][data-bs-theme="dark"] {
+  --accent: #c24d78; --accent-rgb: 194, 77, 120; --accent-hover: #d0608a; --accent-active: #ae4268;
+  --accent-text: #f19ab8; --accent-text-rgb: 241, 154, 184;
+}
+
+:root[data-scheme] {
+  --bs-primary: var(--accent);
+  --bs-primary-rgb: var(--accent-rgb);
+  --bs-link-color: var(--accent-text);
+  --bs-link-color-rgb: var(--accent-text-rgb);
+  --bs-link-hover-color: var(--accent-active);
+  --bs-link-hover-color-rgb: var(--accent-text-rgb);
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--accent);
+  --bs-btn-border-color: var(--accent);
+  --bs-btn-hover-bg: var(--accent-hover);
+  --bs-btn-hover-border-color: var(--accent-hover);
+  --bs-btn-active-bg: var(--accent-active);
+  --bs-btn-active-border-color: var(--accent-active);
+  --bs-btn-disabled-bg: var(--accent);
+  --bs-btn-disabled-border-color: var(--accent);
+  --bs-btn-focus-shadow-rgb: var(--accent-rgb);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--accent-text);
+  --bs-btn-border-color: var(--accent-text);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--accent);
+  --bs-btn-hover-border-color: var(--accent);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--accent-active);
+  --bs-btn-active-border-color: var(--accent-active);
+  --bs-btn-disabled-color: var(--accent-text);
+  --bs-btn-disabled-border-color: var(--accent-text);
+  --bs-btn-focus-shadow-rgb: var(--accent-rgb);
+}
+
+.list-group {
+  --bs-list-group-active-bg: var(--accent);
+  --bs-list-group-active-border-color: var(--accent);
+}
+
+.form-check-input:checked,
+.form-check-input[type="checkbox"]:indeterminate {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.progress {
+  --bs-progress-bar-bg: var(--accent);
+}
+
+/* ---- Appearance menu ---- */
+.appearance-menu {
+  min-width: 16rem;
+}
+
+.swatch {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 2px solid var(--bs-body-bg);
+  border-radius: 50%;
+  background: var(--sw);
+  cursor: pointer;
+}
+
+.swatch[aria-pressed="true"] {
+  outline: 2px solid var(--bs-body-color);
+  outline-offset: 2px;
+}
+
+.swatch[data-scheme="slate"] { --sw: #2c3e50; }
+.swatch[data-scheme="ocean"] { --sw: #0b6fa4; }
+.swatch[data-scheme="forest"] { --sw: #2e7d4f; }
+.swatch[data-scheme="violet"] { --sw: #6f42c1; }
+.swatch[data-scheme="rose"] { --sw: #b83a62; }
+
+/* ---- Search and date filter above the scan list ---- */
+.job-range {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* ---- Select mode: a row shows what is in the scan ---- */
+.bulk-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.bulk-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bulk-row.active .bulk-open {
+  color: inherit;
+}
+
+.bulk-thumbs {
+  display: flex;
+  gap: 4px;
+  margin-top: 0.4rem;
+}
+
+.bulk-thumbs img,
+.confirm-items img {
+  width: 34px;
+  height: 44px;
+  object-fit: cover;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  background: var(--bs-secondary-bg);
+}
+
+/* ---- The delete confirmation ---- */
+.confirm-items {
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.confirm-items li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.confirm-items li:last-child {
+  border-bottom: 0;
 }
