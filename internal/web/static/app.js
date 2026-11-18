@@ -374,6 +374,7 @@
       const isActive = job.id === state.selectedJobId;
       const item = document.createElement('button');
       item.type = 'button';
+      item.dataset.jobId = job.id;
       item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start';
       if (isActive) {
         item.classList.add('active');
@@ -420,6 +421,7 @@
     const isOpen = job.id === state.selectedJobId;
     const row = document.createElement('div');
     row.className = `list-group-item bulk-row${isOpen ? ' active' : ''}`;
+    row.dataset.jobId = job.id;
     const selectable = bulkSelectable(job);
     if (!selectable) row.title = I18N.t('bulk.runningTitle');
     const thumbs = Array.from({ length: Math.min(3, job.pageCount || 0) }, (_, i) =>
@@ -550,12 +552,34 @@
     if (state.bulkSelected.size === 0) setBulkMode(false);
   }
 
+  // Moves the highlight to a scan in the list without rebuilding the list, so
+  // it responds the instant a scan is clicked and nothing in the list flashes.
+  function markActive(jobId) {
+    document.querySelectorAll('#job-list [data-job-id]').forEach((node) => {
+      const on = node.dataset.jobId === jobId;
+      node.classList.toggle('active', on);
+      if (on) node.setAttribute('aria-current', 'true');
+      else node.removeAttribute('aria-current');
+      const meta = node.querySelector('.job-meta');
+      if (meta) meta.classList.toggle('text-muted', !on);
+    });
+  }
+
   async function selectJob(jobId) {
+    // Opening the scan that is already open means it was just changed (rotated,
+    // cropped, reordered...): give its images new URLs so none is served from
+    // the browser's cache. Switching to another scan keeps the same URLs, so
+    // thumbnails already seen come straight from the cache instead of reloading.
+    const changed = jobId === state.selectedJobId && !!state.selectedJob;
+    if (changed) state.renderNonce++;
     state.selectedJobId = jobId;
-    state.renderNonce++;
+    markActive(jobId);
     const res = await api(`/api/scans/${jobId}`);
-    state.selectedJob = await res.json();
-    renderJobList();
+    const job = await res.json();
+    // A later click may have moved on while this was loading: don't undo it.
+    if (state.selectedJobId !== jobId) return;
+    state.selectedJob = job;
+    if (changed) renderJobList();
     renderJobDetail();
     watchSent(jobId);
     // On a phone the scan opens in place of the list: start at its top.
@@ -1714,28 +1738,16 @@
     return div.innerHTML;
   }
 
-  // ---- Appearance (mode and colour scheme; see theme.js) ----
+  // ---- Appearance (light, dark or follow the system; see theme.js) ----
 
   function syncAppearance() {
     const theme = window.DoxieTheme;
     document.querySelectorAll('input[name="theme-mode"]').forEach((r) => { r.checked = r.value === theme.mode; });
-    document.querySelectorAll('.swatch').forEach((b) => {
-      const label = I18N.t(`appearance.scheme.${b.dataset.scheme}`);
-      b.title = label;
-      b.setAttribute('aria-label', label);
-      b.setAttribute('aria-pressed', String(b.dataset.scheme === theme.scheme));
-    });
   }
 
   document.querySelectorAll('input[name="theme-mode"]').forEach((r) => {
     r.addEventListener('change', () => {
       window.DoxieTheme.setMode(r.value);
-      syncAppearance();
-    });
-  });
-  document.querySelectorAll('.swatch').forEach((b) => {
-    b.addEventListener('click', () => {
-      window.DoxieTheme.setScheme(b.dataset.scheme);
       syncAppearance();
     });
   });

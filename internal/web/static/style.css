@@ -629,54 +629,22 @@ body > main > .row > * {
   }
 }
 
-/* ---- Colour schemes ----
-   One accent colour drives the buttons, links, navbar, selection and switches.
-   "slate" is the original Flatly look; each scheme has a lighter accent for
-   dark mode, where a dark one would sink into the background. The mode itself
-   (light or dark) is Bootstrap's own data-bs-theme, set by theme.js. */
+/* ---- Accent colour ----
+   One accent drives the buttons, links, navbar, selection and switches. Light
+   mode keeps Flatly's slate; dark mode uses a lighter one, where the dark slate
+   would sink into the background. The mode itself (light or dark) is
+   Bootstrap's own data-bs-theme, set by theme.js. */
 :root,
-:root[data-scheme="slate"] {
+:root[data-bs-theme="light"] {
   --accent: #2c3e50; --accent-rgb: 44, 62, 80; --accent-hover: #253544; --accent-active: #233240;
   --accent-text: #2c3e50; --accent-text-rgb: 44, 62, 80;
 }
-:root[data-scheme="slate"][data-bs-theme="dark"] {
+:root[data-bs-theme="dark"] {
   --accent: #4f6d8c; --accent-rgb: 79, 109, 140; --accent-hover: #5b7a99; --accent-active: #46627f;
   --accent-text: #8fb0d1; --accent-text-rgb: 143, 176, 209;
 }
-:root[data-scheme="ocean"] {
-  --accent: #0b6fa4; --accent-rgb: 11, 111, 164; --accent-hover: #095f8d; --accent-active: #085378;
-  --accent-text: #0b6fa4; --accent-text-rgb: 11, 111, 164;
-}
-:root[data-scheme="ocean"][data-bs-theme="dark"] {
-  --accent: #2f7fb5; --accent-rgb: 47, 127, 181; --accent-hover: #3a8dc4; --accent-active: #286f9f;
-  --accent-text: #7fbde6; --accent-text-rgb: 127, 189, 230;
-}
-:root[data-scheme="forest"] {
-  --accent: #2e7d4f; --accent-rgb: 46, 125, 79; --accent-hover: #276b44; --accent-active: #225c3a;
-  --accent-text: #2e7d4f; --accent-text-rgb: 46, 125, 79;
-}
-:root[data-scheme="forest"][data-bs-theme="dark"] {
-  --accent: #3b8f5f; --accent-rgb: 59, 143, 95; --accent-hover: #46a06d; --accent-active: #33805a;
-  --accent-text: #7fcf9f; --accent-text-rgb: 127, 207, 159;
-}
-:root[data-scheme="violet"] {
-  --accent: #6f42c1; --accent-rgb: 111, 66, 193; --accent-hover: #5f38a5; --accent-active: #543192;
-  --accent-text: #6f42c1; --accent-text-rgb: 111, 66, 193;
-}
-:root[data-scheme="violet"][data-bs-theme="dark"] {
-  --accent: #7c5cd6; --accent-rgb: 124, 92, 214; --accent-hover: #8a6de0; --accent-active: #6d4fc4;
-  --accent-text: #b9a3f5; --accent-text-rgb: 185, 163, 245;
-}
-:root[data-scheme="rose"] {
-  --accent: #b83a62; --accent-rgb: 184, 58, 98; --accent-hover: #a03355; --accent-active: #8c2d4a;
-  --accent-text: #b83a62; --accent-text-rgb: 184, 58, 98;
-}
-:root[data-scheme="rose"][data-bs-theme="dark"] {
-  --accent: #c24d78; --accent-rgb: 194, 77, 120; --accent-hover: #d0608a; --accent-active: #ae4268;
-  --accent-text: #f19ab8; --accent-text-rgb: 241, 154, 184;
-}
 
-:root[data-scheme] {
+:root[data-bs-theme] {
   --bs-primary: var(--accent);
   --bs-primary-rgb: var(--accent-rgb);
   --bs-link-color: var(--accent-text);
@@ -728,29 +696,8 @@ body > main > .row > * {
 
 /* ---- Appearance menu ---- */
 .appearance-menu {
-  min-width: 16rem;
+  min-width: 15rem;
 }
-
-.swatch {
-  width: 1.75rem;
-  height: 1.75rem;
-  padding: 0;
-  border: 2px solid var(--bs-body-bg);
-  border-radius: 50%;
-  background: var(--sw);
-  cursor: pointer;
-}
-
-.swatch[aria-pressed="true"] {
-  outline: 2px solid var(--bs-body-color);
-  outline-offset: 2px;
-}
-
-.swatch[data-scheme="slate"] { --sw: #2c3e50; }
-.swatch[data-scheme="ocean"] { --sw: #0b6fa4; }
-.swatch[data-scheme="forest"] { --sw: #2e7d4f; }
-.swatch[data-scheme="violet"] { --sw: #6f42c1; }
-.swatch[data-scheme="rose"] { --sw: #b83a62; }
 
 /* ---- Search and date filter above the scan list ---- */
 .job-range {
@@ -812,4 +759,21 @@ body > main > .row > * {
 
 .confirm-items li:last-child {
   border-bottom: 0;
+}
+
+/* ---- Scan list: no hover highlight, no tap flash ----
+   The open scan is marked; other rows don't change colour under the pointer. */
+.list-group-item-action {
+  --bs-list-group-action-hover-bg: var(--bs-list-group-bg);
+  --bs-list-group-action-hover-color: var(--bs-list-group-color);
+  --bs-list-group-action-active-bg: var(--bs-list-group-bg);
+  --bs-list-group-action-active-color: var(--bs-list-group-color);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.list-group-item-action.active {
+  --bs-list-group-action-hover-color: var(--bs-list-group-active-color);
+  --bs-list-group-action-hover-bg: var(--bs-list-group-active-bg);
+  --bs-list-group-action-active-color: var(--bs-list-group-active-color);
+  --bs-list-group-action-active-bg: var(--bs-list-group-active-bg);
 }

@@ -60,11 +60,10 @@ test('phone', async ({ page }, info) => {
   await imagesLoaded(page);
   await shot(page, 'pages-phone');
 
-  // The same view in dark mode with another colour scheme (then back to the
-  // default look for the rest).
-  await page.evaluate(() => { window.DoxieTheme.setMode('dark'); window.DoxieTheme.setScheme('violet'); });
+  // The same view in dark mode (then back to light for the rest).
+  await page.evaluate(() => window.DoxieTheme.setMode('dark'));
   await shot(page, 'dark-phone');
-  await page.evaluate(() => { window.DoxieTheme.setMode('light'); window.DoxieTheme.setScheme('slate'); });
+  await page.evaluate(() => window.DoxieTheme.setMode('light'));
 
   await page.locator('#page-grid .page-thumbnail').nth(0).locator('.combine-check').tap();
   await page.locator('#page-grid .page-thumbnail').nth(1).locator('.combine-check').tap();

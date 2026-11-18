@@ -9,12 +9,11 @@ like `v1.2.0`, and each one gets its own section below.
 
 ### Added
 
-- **Dark and light themes, and colour schemes.** A menu in the top bar sets the
-  mode (Auto follows the system's light or dark setting, or Light / Dark) and one
-  of five colour schemes (slate, the original look, ocean, forest, violet and
-  rose), and holds the language choice, which moved there to make room on a
-  phone. The choice is kept in the browser and applied before the page paints, so
-  there is no flash of the wrong theme.
+- **Dark and light themes.** A menu in the top bar sets the mode: Auto follows
+  the system's light or dark setting (and changes with it), or choose Light or
+  Dark. The language choice moved into the same menu, to make room on a phone.
+  The choice is kept in the browser and applied before the page paints, so there
+  is no flash of the wrong theme.
 - **Search and date filter for scans.** Type words to match a scan's name or date
   and narrow by today, the last 7 or 30 days, this year, or a range of dates.
   *Select all* in select mode ticks only the scans the filter shows.
@@ -33,6 +32,13 @@ like `v1.2.0`, and each one gets its own section below.
 - **Select mode shows what is in each scan.** Rows carry small previews of the
   first pages, and clicking a scan's name opens it beside the list, so you can
   look inside before ticking it for deletion.
+- **Opening a scan no longer flickers, and rows no longer light up on hover.** The
+  open scan's highlight now moves the instant it is clicked instead of after the
+  list was rebuilt, and a scan's thumbnails are reused from the browser's cache
+  when you switch between scans (they were being fetched again every time, because
+  each open gave them a new address). Only a scan you have just changed gets new
+  addresses. A click on another scan while one is still loading can no longer be
+  overtaken by the slower one.
 - **Renaming a scan with Enter now leaves the field** instead of looking as if it
   were still being edited.
 

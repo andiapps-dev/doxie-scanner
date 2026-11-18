@@ -238,14 +238,6 @@
     "auto": "Auto",
     "light": "Claro",
     "dark": "Oscuro",
-    "colors": "Colores",
-    "scheme": {
-      "slate": "Pizarra",
-      "ocean": "Océano",
-      "forest": "Bosque",
-      "violet": "Violeta",
-      "rose": "Rosa"
-    },
     "language": "Idioma"
   },
   "filter": {

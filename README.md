@@ -24,7 +24,7 @@ the scanner through the USB device nodes under `/dev/bus/usb`.
 <p align="center">
   <img src="docs/screenshots/selection-desktop.png" width="49%" alt="Desktop: a scan's pages, two ticked, with the export menu open">
   <img src="docs/screenshots/pages-phone.png" width="16%" alt="Phone: a scan's pages, trimmed and upright">
-  <img src="docs/screenshots/dark-phone.png" width="16%" alt="Phone: the same scan in dark mode with the violet colour scheme">
+  <img src="docs/screenshots/dark-phone.png" width="16%" alt="Phone: the same scan in dark mode">
   <img src="docs/screenshots/selection-phone.png" width="16%" alt="Phone: two pages ticked, with the export menu open">
 </p>
 
@@ -254,8 +254,8 @@ all (under about 520 pixels tall) falls back to an ordinary scrolling page.
   open scan the next one in the list is shown.
 - **Appearance and language**: the half-filled circle in the top bar opens a
   menu with the mode (*Auto* follows your system's light or dark setting,
-  or choose *Light* / *Dark*), five colour schemes (slate, ocean, forest,
-  violet and rose) and the language. Your choices are remembered in the browser.
+  or choose *Light* / *Dark*) and the language. Your choices are remembered in
+  the browser.
 - **Messages** (sent, trimmed, restored, deleted) appear as short toasts at
   the top, not pop-up boxes.
 
