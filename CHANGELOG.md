@@ -5,7 +5,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/) — tags look
 like `v1.2.0`, and each one gets its own section below.
 
-## [1.2.0] - 2026-11-19
+## [1.3.0] - 2026-11-19
 
 ### Added
 
@@ -15,6 +15,11 @@ like `v1.2.0`, and each one gets its own section below.
   whichever browser started it. `DOXIE_BUTTON_DUPLEX=1` makes it two-sided and
   `DOXIE_DISABLE_BUTTON=1` turns it off. The scanner is held open for listening
   and let go the moment a scan or the status check needs it.
+
+## [1.2.0] - 2026-11-19
+
+### Added
+
 - **Dark and light themes.** A menu in the top bar sets the mode: Auto follows
   the system's light or dark setting (and changes with it), or choose Light or
   Dark. The language choice moved into the same menu, to make room on a phone.
