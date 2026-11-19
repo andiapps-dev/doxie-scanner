@@ -55,6 +55,11 @@ sheets feed back to back. The old driver is in the git history.
   default), from the browser. The scanner JPEG-encodes each side on the
   device, and one scan job stays open for a whole stack so sheets feed
   without a pause between them
+- **The scanner's own button starts a scan.** Press it with paper loaded and a
+  scan begins as if you had clicked *Start scan* (pages are cropped and turned
+  upright like the page's defaults); any open browser shows its progress and
+  opens the scan when it is done. See `DOXIE_BUTTON_DUPLEX` below for one-sided
+  or two-sided
 - "Start scan" is only enabled once the scanner is actually reachable — a
   live "connected / not connected" status badge backs it, no page refresh needed
 - **Duplex scans number each side as its own independent page.** One
@@ -335,6 +340,8 @@ environment variable (default `doxie-dx400`).
 | `DOXIE_DRIVER` | `doxie-dx400` | Which registered driver to use. Only `doxie-dx400` exists today. |
 | `DOXIE_PAPERLESS_URL` | *(unset)* | Address of your Paperless-ngx, as this server reaches it, e.g. `http://paperless.lan:8000`. With the token, turns on *Send to Paperless*. |
 | `DOXIE_PAPERLESS_TOKEN` | *(unset)* | A Paperless API token (Paperless → your name → My Profile → API Auth Token). Both this and the URL must be set. Keep it out of the compose file: put both in a `.env` next to it (see `.env.example`). |
+| `DOXIE_BUTTON_DUPLEX` | *(off)* | Set to `1` to make a scan started from the scanner's button read both sides. The button can't say, and the page's duplex switch is kept in the browser, so this is a setting of the server. |
+| `DOXIE_DISABLE_BUTTON` | *(off)* | Set to `1` to ignore the scanner's button. |
 | `DOXIE_OCR_LANG` | `eng` | Tesseract language code "Extract Text" uses. Anything besides `eng` needs the matching `tesseract-ocr-data-<lang>` package added to a custom build — only English data ships in the published image. |
 
 ## Local development
@@ -392,6 +399,11 @@ currently on main."
   idle; press its power button and the badge turns green by itself. Then
   confirm it's visible to the host with `lsusb -d 2740:000c` (see USB
   passthrough above).
+- **The button does nothing**: the server only listens while no scan is
+  running, and a press with an empty feeder makes an empty scan, the same as
+  *Start scan* does. Check the log (`docker logs doxie-scanner`) for
+  "scanner button pressed"; if a press never appears there, the button is not
+  reaching the server.
 - **A paper jam** is reported as one: open the scanner, take the sheet
   out, then switch the scanner off and on before scanning again.
 - The scanner takes paper from the top tray (stacks), the slot at the back

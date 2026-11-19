@@ -56,3 +56,16 @@ func TestLoadConfig_Paperless(t *testing.T) {
 		t.Errorf("values not trimmed: %+v", cfg)
 	}
 }
+
+func TestLoadConfig_Button(t *testing.T) {
+	if cfg := loadConfig(fakeGetenv(nil)); cfg.ButtonDuplex || cfg.NoButton {
+		t.Errorf("defaults: %+v, want the button on and simplex", cfg)
+	}
+	cfg := loadConfig(fakeGetenv(map[string]string{"DOXIE_BUTTON_DUPLEX": " Yes ", "DOXIE_DISABLE_BUTTON": "1"}))
+	if !cfg.ButtonDuplex || !cfg.NoButton {
+		t.Errorf("got %+v", cfg)
+	}
+	if loadConfig(fakeGetenv(map[string]string{"DOXIE_BUTTON_DUPLEX": "nope"})).ButtonDuplex {
+		t.Error("an unrecognised value should not turn duplex on")
+	}
+}

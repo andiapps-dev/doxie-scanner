@@ -6,6 +6,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -65,6 +67,33 @@ func main() {
 	}
 	srv := api.NewServer(drv, mgr, store, web.FS(), version, cfg.OCRLang, opts...)
 
+	if bw, ok := drv.(driver.ButtonWatcher); ok && !cfg.NoButton {
+		go bw.WatchButton(context.Background(), buttonScan(mgr, cfg.ButtonDuplex))
+		log.Printf("the scanner's own button starts a scan (duplex=%v)", cfg.ButtonDuplex)
+	}
+
 	log.Printf("doxie-scanner %s listening on %s (driver=%s)", version, cfg.ListenAddr, cfg.DriverName)
 	log.Fatal(http.ListenAndServe(cfg.ListenAddr, srv))
+}
+
+// buttonScan returns what happens when the scanner's button is pressed: the
+// same scan the page's Start button would begin, with the page's defaults
+// (crop and straighten, turn upright when possible). A press during a scan
+// that is already running is ignored.
+func buttonScan(mgr *scanjobs.Manager, duplex bool) func() {
+	return func() {
+		id, err := mgr.StartScanWith(scanjobs.Options{
+			Duplex:     duplex,
+			AutoRotate: mgr.CanAutoRotate(),
+			AutoCrop:   true,
+		})
+		switch {
+		case errors.Is(err, scanjobs.ErrAlreadyRunning):
+			log.Printf("scanner button pressed while a scan is running; ignored")
+		case err != nil:
+			log.Printf("scanner button: could not start a scan: %v", err)
+		default:
+			log.Printf("scanner button pressed: started scan %s", id)
+		}
+	}
 }

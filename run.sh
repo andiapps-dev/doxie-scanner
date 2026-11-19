@@ -21,6 +21,8 @@ docker run -d \
 	-v /etc/localtime:/etc/localtime:ro \
 	${DOXIE_PAPERLESS_URL:+-e DOXIE_PAPERLESS_URL} \
 	${DOXIE_PAPERLESS_TOKEN:+-e DOXIE_PAPERLESS_TOKEN} \
+	${DOXIE_BUTTON_DUPLEX:+-e DOXIE_BUTTON_DUPLEX} \
+	${DOXIE_DISABLE_BUTTON:+-e DOXIE_DISABLE_BUTTON} \
 	--device-cgroup-rule='c 189:* rmw' \
 	"$IMAGE"
 

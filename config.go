@@ -26,6 +26,12 @@ type Config struct {
 	// must be set.
 	PaperlessURL   string
 	PaperlessToken string
+	// ButtonDuplex makes a scan started from the scanner's own button scan
+	// both sides. The button has no way to say so, and the page's duplex
+	// switch lives in the browser, so it is a setting of the server.
+	ButtonDuplex bool
+	// NoButton turns off listening for the scanner's button.
+	NoButton bool
 }
 
 const (
@@ -58,5 +64,15 @@ func loadConfig(getenv func(string) string) Config {
 	}
 	cfg.PaperlessURL = strings.TrimSpace(getenv("DOXIE_PAPERLESS_URL"))
 	cfg.PaperlessToken = strings.TrimSpace(getenv("DOXIE_PAPERLESS_TOKEN"))
+	cfg.ButtonDuplex = isTrue(getenv("DOXIE_BUTTON_DUPLEX"))
+	cfg.NoButton = isTrue(getenv("DOXIE_DISABLE_BUTTON"))
 	return cfg
+}
+
+func isTrue(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }

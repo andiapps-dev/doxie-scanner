@@ -231,6 +231,7 @@
       const data = await res.json();
       state.scannerConnected = data.connected;
       renderFeatures(data);
+      adoptRunningScan(data.scanningJobId);
       if (data.connected) {
         badge.textContent = I18N.t('status.connected');
         badge.className = 'badge rounded-pill text-bg-success';
@@ -251,6 +252,16 @@
       showScannerHint(I18N.t('scan.hint.unreachable'));
     }
     updateStartButtonState();
+  }
+
+  // A scan this page did not start (the scanner's own button, or another
+  // browser) shows its progress here too, and opens when it finishes.
+  function adoptRunningScan(jobId) {
+    if (!jobId || state.scanning || state.scanPollTimer) return;
+    state.scanning = true;
+    document.body.classList.add('scanning');
+    updateStartButtonState();
+    watchScanProgress(jobId);
   }
 
   // A line under the new-scan controls that says what to do when the

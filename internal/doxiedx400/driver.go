@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/draw"
 	"image/jpeg"
+	"sync"
 	"time"
 
 	"github.com/andiapps-dev/doxie-scanner/internal/driver"
@@ -24,7 +25,13 @@ func init() {
 // New constructs a Doxie Pro DX400 driver.Driver.
 func New() driver.Driver { return &dxDriver{} }
 
-type dxDriver struct{}
+// dxDriver is shared by the status badge, scans and the button watcher,
+// which all need the one USB interface, so mu says who has it.
+type dxDriver struct {
+	mu       sync.Mutex
+	watching scsiusb.BulkDevice // held by the button watcher; nil when it isn't
+	sessions int                // scan sessions currently open
+}
 
 func (d *dxDriver) Info() driver.Info {
 	return driver.Info{
@@ -42,8 +49,14 @@ var openDeviceFunc = func() (scsiusb.BulkDevice, error) {
 }
 
 // Detect reports whether the scanner can be opened right now. There is no
-// cheaper probe than opening it.
+// cheaper probe than opening it, unless the button watcher already has it
+// open, which answers the question by itself.
 func (d *dxDriver) Detect(ctx context.Context) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.watching != nil {
+		return nil
+	}
 	dev, err := openDeviceFunc()
 	if err != nil {
 		return err
@@ -52,11 +65,88 @@ func (d *dxDriver) Detect(ctx context.Context) error {
 }
 
 func (d *dxDriver) Open(ctx context.Context) (driver.Session, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.stopWatchingLocked()
 	dev, err := openDeviceFunc()
 	if err != nil {
 		return nil, err
 	}
-	return &session{dev: dev, sleep: time.Sleep}, nil
+	d.sessions++
+	return &session{dev: dev, sleep: time.Sleep, release: sync.OnceFunc(d.sessionClosed)}, nil
+}
+
+func (d *dxDriver) sessionClosed() {
+	d.mu.Lock()
+	d.sessions--
+	d.mu.Unlock()
+}
+
+func (d *dxDriver) stopWatchingLocked() {
+	if d.watching != nil {
+		_ = d.watching.Close()
+		d.watching = nil
+	}
+}
+
+// How long the watcher waits for a press before letting go of the scanner
+// for a moment (so a scan or a status check never waits longer than this),
+// and how long it rests when the scanner can't be had.
+const (
+	buttonSlice = 250 * time.Millisecond
+	buttonRetry = 2 * time.Second
+)
+
+// WatchButton calls onPress for each press of the scanner's own button. It
+// holds the scanner open between scans, and lets go the moment Open needs it
+// (a scan, from the page or from the button itself); it takes it back when
+// the scan's session closes. A scanner that isn't plugged in is simply
+// retried.
+func (d *dxDriver) WatchButton(ctx context.Context, onPress func()) {
+	defer func() {
+		d.mu.Lock()
+		d.stopWatchingLocked()
+		d.mu.Unlock()
+	}()
+	for ctx.Err() == nil {
+		pressed, ok := d.pollButton(ctx)
+		switch {
+		case pressed:
+			onPress()
+		case !ok:
+			select {
+			case <-ctx.Done():
+			case <-time.After(buttonRetry):
+			}
+		}
+	}
+}
+
+// pollButton listens for one slice. ok is false when the scanner couldn't
+// be listened to at all (busy with a scan, unplugged, no interrupt pipe).
+func (d *dxDriver) pollButton(ctx context.Context) (pressed, ok bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.sessions > 0 {
+		return false, false
+	}
+	if d.watching == nil {
+		dev, err := openDeviceFunc()
+		if err != nil {
+			return false, false
+		}
+		if _, ok := dev.(scsiusb.InterruptReader); !ok {
+			_ = dev.Close() // nothing to listen on
+			return false, false
+		}
+		d.watching = dev
+	}
+	pressed, err := (&session{dev: d.watching}).WaitForButton(ctx, buttonSlice)
+	if err != nil {
+		d.stopWatchingLocked() // unplugged mid-wait, most likely
+		return false, false
+	}
+	return pressed, true
 }
 
 // Within a stack, the next sheet can take a moment to reach the paper
@@ -73,6 +163,9 @@ type session struct {
 	dev   scsiusb.BulkDevice
 	batch *window // the open stack's settings; nil between stacks
 	sleep func(time.Duration)
+	// release tells the driver this session is done with the scanner, so the
+	// button watcher may take it back. Nil for a session built without one.
+	release func()
 }
 
 // HasNextPage reports whether paper is waiting. Inside a stack, "no
@@ -254,5 +347,9 @@ func (s *session) EndBatch(ctx context.Context) error {
 
 // Close ends any open stack, then releases the device.
 func (s *session) Close() error {
-	return errors.Join(s.EndBatch(context.Background()), s.dev.Close())
+	err := errors.Join(s.EndBatch(context.Background()), s.dev.Close())
+	if s.release != nil {
+		s.release()
+	}
+	return err
 }

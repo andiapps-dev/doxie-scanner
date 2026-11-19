@@ -70,3 +70,14 @@ type Driver interface {
 	// Open-time failure, though Open may return the same error types.
 	Open(ctx context.Context) (Session, error)
 }
+
+// ButtonWatcher is implemented by a driver whose scanner has a button of
+// its own. It is optional: a driver without one simply doesn't implement
+// it, and the app starts scans from the web page only.
+type ButtonWatcher interface {
+	// WatchButton calls onPress for each press until ctx ends. It blocks,
+	// so callers run it in a goroutine. It must give the scanner up to
+	// Detect and Open whenever they need it, since a scanner can only be
+	// opened by one party at a time.
+	WatchButton(ctx context.Context, onPress func())
+}

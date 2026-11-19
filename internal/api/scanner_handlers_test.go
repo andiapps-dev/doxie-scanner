@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/andiapps-dev/doxie-scanner/internal/driver"
 	"github.com/andiapps-dev/doxie-scanner/internal/scsiusb"
@@ -114,5 +115,43 @@ func TestHandleScannerStatus_GenericScsiError(t *testing.T) {
 	}
 	if resp.Error == nil || resp.Error.Code != "scsi_error" {
 		t.Errorf("expected scsi_error, got %+v", resp.Error)
+	}
+}
+
+// A scan started anywhere (another browser, the scanner's own button) is
+// reported, so a page that didn't start it can show its progress.
+func TestHandleScannerStatus_ReportsARunningScan(t *testing.T) {
+	block := make(chan struct{})
+	drv := &fakeDriver{info: driver.Info{Name: "doxie-dx400"}, session: &fakeSession{block: block}}
+	srv, _ := newTestServer(t, drv)
+
+	status := func() scannerStatusResponse {
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/scanner/status", nil))
+		var resp scannerStatusResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+	if id := status().ScanningJobID; id != "" {
+		t.Fatalf("scanningJobId = %q before any scan", id)
+	}
+
+	id, err := srv.jobs.StartScan(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := status().ScanningJobID; got != id {
+		t.Errorf("scanningJobId = %q during a scan, want %q", got, id)
+	}
+
+	close(block)
+	deadline := time.Now().Add(2 * time.Second)
+	for status().ScanningJobID != "" {
+		if time.Now().After(deadline) {
+			t.Fatal("scanningJobId still set after the scan finished")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

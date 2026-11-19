@@ -3,6 +3,8 @@ package api
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/andiapps-dev/doxie-scanner/internal/storage"
 )
 
 type versionResponse struct {
@@ -29,6 +31,10 @@ type scannerStatusResponse struct {
 	// uses it to link to filed documents.
 	PaperlessURL string    `json:"paperlessUrl,omitempty"`
 	Error        *apiError `json:"error,omitempty"`
+	// ScanningJobID is set while a scan is running, whoever started it (this
+	// page, another browser, or the scanner's own button), so a page that
+	// did not start it can show its progress.
+	ScanningJobID string `json:"scanningJobId,omitempty"`
 }
 
 // handleScannerStatus reports whether the scanner is currently reachable.
@@ -47,6 +53,10 @@ func (s *Server) handleScannerStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.paperless != nil {
 		resp.PaperlessURL = s.paperless.BaseURL()
+	}
+
+	if cur := s.jobs.CurrentJob(); cur != nil && cur.Status == storage.StatusRunning {
+		resp.ScanningJobID = cur.ID
 	}
 
 	if err := s.drv.Detect(r.Context()); err != nil {
